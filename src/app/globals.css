@@ -1,26 +1,125 @@
 @import "tailwindcss";
+@import "maplibre-gl/dist/maplibre-gl.css";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --surface-0: #f5f0e6;
+  --surface-1: rgba(255, 250, 243, 0.88);
+  --surface-2: rgba(247, 239, 225, 0.88);
+  --surface-3: #f0e5d5;
+  --ink-900: #17212b;
+  --ink-700: #304556;
+  --ink-500: #607282;
+  --line-soft: rgba(35, 48, 59, 0.12);
+  --line-strong: rgba(35, 48, 59, 0.22);
+  --accent: #0e7c66;
+  --accent-soft: rgba(14, 124, 102, 0.12);
+  --danger-soft: rgba(190, 90, 67, 0.14);
+  --shadow-md: 0 18px 44px rgba(27, 38, 46, 0.12);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--surface-0);
+  --color-foreground: var(--ink-900);
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-ibm-plex-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(228, 184, 90, 0.24), transparent 28%),
+    radial-gradient(circle at top right, rgba(47, 142, 201, 0.18), transparent 32%),
+    linear-gradient(180deg, #f8f3ea 0%, #f2ecdf 100%);
+  color: var(--ink-900);
+  font-family: var(--font-ui), sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: rgba(14, 124, 102, 0.16);
+}
+
+.maplibregl-popup-content {
+  border-radius: 18px;
+  border: 1px solid var(--line-soft);
+  box-shadow: var(--shadow-md);
+  padding: 0;
+  overflow: hidden;
+}
+
+.maplibregl-popup-tip {
+  display: none;
+}
+
+.maplibregl-ctrl-bottom-right,
+.maplibregl-ctrl-bottom-left {
+  z-index: 25;
+}
+
+.maplibregl-ctrl-bottom-right {
+  right: 10px;
+  bottom: 8px;
+}
+
+.maplibregl-ctrl-bottom-left {
+  left: 10px;
+  bottom: 8px;
+}
+
+.glass-card {
+  backdrop-filter: blur(18px);
+  background: var(--surface-1);
+  border: 1px solid var(--line-soft);
+  box-shadow: var(--shadow-md);
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  padding: 0.28rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.status-available {
+  background: rgba(121, 185, 99, 0.16);
+  color: #2e6930;
+}
+
+.status-occupied {
+  background: rgba(47, 142, 201, 0.16);
+  color: #1f567d;
+}
+
+.status-unavailable {
+  background: var(--danger-soft);
+  color: #8b3829;
+}
+
+.status-unknown {
+  background: rgba(139, 149, 161, 0.16);
+  color: #4b5563;
+}
+
+.soft-grid {
+  background-image:
+    linear-gradient(rgba(48, 69, 86, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(48, 69, 86, 0.045) 1px, transparent 1px);
+  background-position: center;
+  background-size: 26px 26px;
 }

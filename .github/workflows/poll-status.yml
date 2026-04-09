@@ -1,0 +1,52 @@
+name: Poll Charger Status
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  poll-status:
+    name: Poll Toronto Status (shard ${{ matrix.shard_index + 1 }}/5)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard_index: 0
+            stagger_seconds: 0
+          - shard_index: 1
+            stagger_seconds: 2
+          - shard_index: 2
+            stagger_seconds: 4
+          - shard_index: 3
+            stagger_seconds: 6
+          - shard_index: 4
+            stagger_seconds: 8
+    concurrency:
+      group: poll-status-shard-${{ matrix.shard_index }}
+      cancel-in-progress: false
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      POLL_SHARD_COUNT: 5
+      POLL_SHARD_INDEX: ${{ matrix.shard_index }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Stagger shard start
+        run: sleep ${{ matrix.stagger_seconds }}
+
+      - name: Poll SWTCH charger statuses
+        run: npm run poll:status

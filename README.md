@@ -1,36 +1,127 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Ev network Map
 
-## Getting Started
+Map-first public charger explorer for specific EV charging network, with a path toward
+session analytics, occupancy tracking, and estimated revenue.
 
-First, run the development server:
+## Stack
+
+- Next.js 16
+- TypeScript
+- Tailwind CSS 4
+- Supabase
+- MapLibre
+
+## Local Development
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The app will:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- use Supabase if the public env vars are present and the tables exist
+- fall back to mock charger data otherwise
 
-## Learn More
+## Environment Variables
 
-To learn more about Next.js, take a look at the following resources:
+Copy `.env.example` to `.env.local` and fill in values as needed.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Required for the public app:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY`
 
-## Deploy on Vercel
+Required later for scraper upserts and scheduled writes:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `SUPABASE_SERVICE_ROLE_KEY`
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Database Setup
+
+Apply the SQL in:
+
+- `supabase/migrations/202604080945_init.sql`
+
+That migration creates:
+
+- `chargers`
+- `charger_current_status`
+- `charger_status_events`
+- `charger_sessions`
+
+For pricing parsing and normalized pricing fields, see:
+
+- `docs/pricing-model.md`
+
+## Scraper Foundation
+
+Run a single listing scrape:
+
+```bash
+npm run scrape:listing -- 1
+```
+
+This currently:
+
+- fetches dedicated EV charging network listing page
+- parses visible charger fields
+- extracts the Google Maps query URL
+- geocodes the derived address with Nominatim
+- prints structured JSON
+
+Run a bounded discovery pass:
+
+```bash
+npm run scrape:range -- 1 100
+```
+
+This will:
+
+- scan listings `1..100`
+- keep a conservative pause between requests
+- identify parseable vs missing/decommissioned listings
+- geocode found addresses
+- print a JSON summary for review
+
+When you are ready to write into Supabase:
+
+```bash
+npm run scrape:range -- 1 100 --write
+```
+
+For `--write`, add `SUPABASE_SERVICE_ROLE_KEY` to `.env.local` first.
+
+To tag live Toronto coverage after a scrape:
+
+```bash
+npm run scope:toronto
+```
+
+## Recommended Free Scheduling
+
+For the recurring 10-minute Toronto poller, the current recommendation is:
+
+- GitHub Actions
+
+Reason:
+
+- free to start
+- not tied to your local machine
+- easy to pair with a public GitHub repo and Vercel deployment
+
+## Next Build Steps
+
+1. Create the Supabase tables from the migration
+2. Add the service role key locally
+3. Build the discovery scraper for `listings/1..n`
+4. Tag Toronto chargers after discovery with `npm run scope:toronto`
+5. Run the 5-shard Toronto status poller every 10 minutes
+6. Wire dashboard analytics on top of session and event data
+
+For local shard testing, you can run a single shard directly:
+
+```bash
+npm run poll:status -- --shard-count 5 --shard-index 0
+```
