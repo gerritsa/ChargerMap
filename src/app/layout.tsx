@@ -14,9 +14,9 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Swtch Toronto Live",
+  title: "ChargerMap Toronto Live",
   description:
-    "A City of Toronto dashboard for live monitoring, occupancy tracking, and charger intelligence across the SWTCH network.",
+    "ChargerMap is a City of Toronto dashboard for live monitoring, occupancy tracking, and charger intelligence across the SWTCH network.",
 };
 
 export default function RootLayout({

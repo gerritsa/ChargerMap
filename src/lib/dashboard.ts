@@ -16,8 +16,12 @@ import type {
   DashboardData,
   DashboardFilterOption,
   DashboardFilters,
+  DashboardOccupancyListData,
   DashboardPriceBucket,
+  DashboardProfitabilityListData,
   DashboardStatusFilter,
+  DashboardUnavailableListData,
+  DashboardVisibleFilter,
 } from "@/types/dashboard";
 import type { ChargerStatusNormalized } from "@/types/charger";
 
@@ -138,6 +142,8 @@ const DEFAULT_FILTERS: DashboardFilters = {
   price: "all",
   output: "all",
 };
+
+const DASHBOARD_LIST_PAGE_SIZE = 25;
 
 const mockDashboardMeta = new Map<
   string,
@@ -573,6 +579,7 @@ async function fetchDashboardTopRows(
     orderBy: string;
     ascending?: boolean;
     limit?: number;
+    offset?: number;
     statusFilter?: ChargerStatusNormalized;
   },
 ) {
@@ -611,7 +618,7 @@ async function fetchDashboardTopRows(
 
         return left.chargerIdentifier.localeCompare(right.chargerIdentifier);
       })
-      .slice(0, options.limit ?? 10);
+      .slice(options.offset ?? 0, (options.offset ?? 0) + (options.limit ?? 10));
   }
 
   let query = supabase
@@ -644,7 +651,10 @@ async function fetchDashboardTopRows(
   query = query
     .order(options.orderBy, { ascending: options.ascending ?? false })
     .order("total_sessions", { ascending: false })
-    .limit(options.limit ?? 10);
+    .range(
+      options.offset ?? 0,
+      (options.offset ?? 0) + (options.limit ?? 10) - 1,
+    );
 
   const { data, error } = await query;
 
@@ -655,6 +665,61 @@ async function fetchDashboardTopRows(
   return ((data as unknown) as SupabaseDashboardStatsRow[])
     .map((row) => normalizeSupabaseDashboardRow(row, now))
     .filter((row): row is DashboardBaseRow => Boolean(row));
+}
+
+async function countDashboardRows(
+  filters: DashboardFilters,
+  now: Date,
+  options: {
+    statusFilter?: ChargerStatusNormalized;
+  } = {},
+) {
+  const supabase = createServerSupabaseClient();
+
+  if (!supabase) {
+    let rows = applyDashboardFilters(buildMockDashboardRows(now), filters);
+
+    if (options.statusFilter) {
+      rows = rows.filter((row) => row.statusNormalized === options.statusFilter);
+    }
+
+    return rows.length;
+  }
+
+  let query = supabase
+    .from("charger_stats")
+    .select("charger_id, chargers!inner(id)", { count: "exact", head: true })
+    .eq("chargers.tracking_scope", "toronto")
+    .eq("chargers.is_active", true)
+    .eq("chargers.is_decommissioned", false);
+
+  if (filters.status !== "all") {
+    query = query.eq("status_normalized", filters.status);
+  }
+
+  if (filters.region !== "all") {
+    query = query.eq("region", filters.region);
+  }
+
+  if (filters.price !== "all") {
+    query = query.eq("price_bucket", filters.price);
+  }
+
+  if (filters.output !== "all") {
+    query = query.eq("output_bucket", filters.output);
+  }
+
+  if (options.statusFilter) {
+    query = query.eq("status_normalized", options.statusFilter);
+  }
+
+  const { count, error } = await query;
+
+  if (error) {
+    return 0;
+  }
+
+  return count ?? 0;
 }
 
 async function fetchDashboardFilterOptions(
@@ -816,21 +881,46 @@ function normalizeDashboardFilters(
   };
 }
 
-export async function getDashboardData(
-  rawSearchParams: DashboardQueryParams = {},
-  now = new Date(),
-): Promise<DashboardData> {
-  const universeOptions = await fetchDashboardUniverseOptions();
-  const filters = normalizeDashboardFilters(rawSearchParams, universeOptions);
-  const [
-    snapshot,
-    topUnavailableRows,
-    topOccupancyRows,
-    topProfitableRows,
-    regionFilterOptions,
-    outputFilterOptions,
-  ] =
+function normalizeDashboardPage(rawSearchParams: DashboardQueryParams = {}) {
+  const pageValue = Number(getSingleParam(rawSearchParams.page));
+
+  if (!Number.isFinite(pageValue) || pageValue < 1) {
+    return 1;
+  }
+
+  return Math.floor(pageValue);
+}
+
+function buildDashboardFilterOptions(
+  filters: DashboardFilters,
+  outputFilterOptions: { outputs: string[] },
+) {
+  return {
+    status: STATUS_OPTIONS,
+    region: [{ value: "all", label: "All regions" }],
+    price: PRICE_OPTIONS,
+    output: ensureSelectedOption(
+      [
+        { value: "all", label: "All outputs" },
+        ...outputFilterOptions.outputs.map((value) => ({
+          value,
+          label: value === "unknown" ? "Unknown output" : `${value} kW`,
+        })),
+      ],
+      filters.output,
+      (value) => ({
+        value,
+        label: value === "unknown" ? "Unknown output" : `${value} kW`,
+      }),
+    ),
+  };
+}
+
+export async function getDashboardData(now = new Date()): Promise<DashboardData> {
+  const filters = DEFAULT_FILTERS;
+  const [{ hasLiveData }, snapshot, topUnavailableRows, topOccupancyRows, topProfitableRows] =
     await Promise.all([
+      fetchDashboardUniverseOptions(),
       getDashboardSnapshot(filters, now),
       fetchDashboardTopRows(filters, now, {
         orderBy: "unavailable_since",
@@ -846,8 +936,6 @@ export async function getDashboardData(
         orderBy: "estimated_all_time_revenue",
         limit: 10,
       }),
-      fetchDashboardFilterOptions(filters, ["region"]),
-      fetchDashboardFilterOptions(filters, ["output"]),
     ]);
 
   const kpis = snapshot.kpis;
@@ -857,33 +945,6 @@ export async function getDashboardData(
       : 0;
 
   return {
-    filters,
-    options: {
-      status: STATUS_OPTIONS,
-      region: ensureSelectedOption(
-        [
-          { value: "all", label: "All regions" },
-          ...regionFilterOptions.regions.map((region) => ({ value: region, label: region })),
-        ],
-        filters.region,
-        (value) => ({ value, label: value }),
-      ),
-      price: PRICE_OPTIONS,
-      output: ensureSelectedOption(
-        [
-          { value: "all", label: "All outputs" },
-          ...outputFilterOptions.outputs.map((value) => ({
-            value,
-            label: value === "unknown" ? "Unknown output" : `${value} kW`,
-          })),
-        ],
-        filters.output,
-        (value) => ({
-          value,
-          label: value === "unknown" ? "Unknown output" : `${value} kW`,
-        }),
-      ),
-    },
     kpis,
     occupancyRows: topOccupancyRows.map((row) => ({
       id: row.id,
@@ -959,7 +1020,175 @@ export async function getDashboardData(
       observedOccupancyRate: row.observedOccupancyRate,
     })),
     generatedAt: now.toISOString(),
-    hasLiveData: universeOptions.hasLiveData && snapshot.hasLiveData,
+    hasLiveData: hasLiveData && snapshot.hasLiveData,
+  };
+}
+
+async function getDashboardListData(
+  kind: "unavailable" | "occupancy" | "profitability",
+  rawSearchParams: DashboardQueryParams = {},
+  now = new Date(),
+) {
+  const universeOptions = await fetchDashboardUniverseOptions();
+  const requestedFilters = normalizeDashboardFilters(rawSearchParams, universeOptions);
+  const requestedPage = normalizeDashboardPage(rawSearchParams);
+  const visibleFilters: DashboardVisibleFilter[] =
+    kind === "occupancy"
+      ? ["status", "price", "output"]
+      : ["price", "output"];
+  const filters: DashboardFilters = {
+    ...requestedFilters,
+    status:
+      kind === "unavailable"
+        ? "unavailable"
+        : kind === "profitability"
+          ? "all"
+          : requestedFilters.status,
+  };
+  const statusFilter = kind === "unavailable" ? "unavailable" : undefined;
+  const orderBy =
+    kind === "unavailable"
+      ? "unavailable_since"
+      : kind === "occupancy"
+        ? "observed_occupancy_rate"
+        : "estimated_all_time_revenue";
+  const ascending = kind === "unavailable";
+
+  const [totalItems, outputFilterOptions] = await Promise.all([
+    countDashboardRows(filters, now, { statusFilter }),
+    fetchDashboardFilterOptions(filters, ["output"]),
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(totalItems / DASHBOARD_LIST_PAGE_SIZE));
+  const page = Math.min(requestedPage, totalPages);
+  const offset = (page - 1) * DASHBOARD_LIST_PAGE_SIZE;
+  const pageRows = await fetchDashboardTopRows(filters, now, {
+    orderBy,
+    ascending,
+    statusFilter,
+    limit: DASHBOARD_LIST_PAGE_SIZE,
+    offset,
+  });
+
+  return {
+    filters,
+    options: buildDashboardFilterOptions(filters, outputFilterOptions),
+    visibleFilters,
+    pagination: {
+      page,
+      pageSize: DASHBOARD_LIST_PAGE_SIZE,
+      totalItems,
+      totalPages,
+    },
+    rows: pageRows,
+    generatedAt: now.toISOString(),
+    hasLiveData: universeOptions.hasLiveData,
+  };
+}
+
+export async function getDashboardUnavailableListData(
+  rawSearchParams: DashboardQueryParams = {},
+  now = new Date(),
+): Promise<DashboardUnavailableListData> {
+  const data = await getDashboardListData("unavailable", rawSearchParams, now);
+
+  return {
+    ...data,
+    rows: data.rows
+      .filter((row) => row.unavailableSince)
+      .map((row) => ({
+        id: row.id,
+        listingId: row.listingId,
+        chargerIdentifier: row.chargerIdentifier,
+        title: row.title,
+        imageUrl: row.imageUrl,
+        address: row.address,
+        mapUrl: row.mapUrl,
+        lat: row.lat,
+        lng: row.lng,
+        region: row.region,
+        outputText: row.outputText,
+        priceText: row.priceText,
+        scheduleText: row.scheduleText,
+        statusText: row.statusText,
+        statusNormalized: row.statusNormalized,
+        lastCheckedAt: row.lastCheckedAt,
+        unavailableSince: row.unavailableSince!,
+        unavailableDurationSeconds: Math.max(
+          0,
+          differenceInSeconds(now, new Date(row.unavailableSince!)),
+        ),
+        observedOccupancyRate: row.observedOccupancyRate,
+        totalSessions: row.totalSessions,
+      })),
+  };
+}
+
+export async function getDashboardOccupancyListData(
+  rawSearchParams: DashboardQueryParams = {},
+  now = new Date(),
+): Promise<DashboardOccupancyListData> {
+  const data = await getDashboardListData("occupancy", rawSearchParams, now);
+
+  return {
+    ...data,
+    rows: data.rows.map((row) => ({
+      id: row.id,
+      listingId: row.listingId,
+      chargerIdentifier: row.chargerIdentifier,
+      title: row.title,
+      imageUrl: row.imageUrl,
+      address: row.address,
+      mapUrl: row.mapUrl,
+      lat: row.lat,
+      lng: row.lng,
+      region: row.region,
+      outputText: row.outputText,
+      priceText: row.priceText,
+      scheduleText: row.scheduleText,
+      statusText: row.statusText,
+      statusNormalized: row.statusNormalized,
+      lastCheckedAt: row.lastCheckedAt,
+      observedOccupancyRate: row.observedOccupancyRate,
+      observedOccupiedSeconds: row.observedOccupiedSeconds,
+      trackedSeconds: row.trackedSeconds,
+      totalSessions: row.totalSessions,
+      estimatedAllTimeRevenue: row.estimatedAllTimeRevenue,
+      currentSessionStartedAt: row.currentSessionStartedAt,
+    })),
+  };
+}
+
+export async function getDashboardProfitabilityListData(
+  rawSearchParams: DashboardQueryParams = {},
+  now = new Date(),
+): Promise<DashboardProfitabilityListData> {
+  const data = await getDashboardListData("profitability", rawSearchParams, now);
+
+  return {
+    ...data,
+    rows: data.rows.map((row) => ({
+      id: row.id,
+      listingId: row.listingId,
+      chargerIdentifier: row.chargerIdentifier,
+      title: row.title,
+      imageUrl: row.imageUrl,
+      address: row.address,
+      mapUrl: row.mapUrl,
+      lat: row.lat,
+      lng: row.lng,
+      region: row.region,
+      outputText: row.outputText,
+      priceText: row.priceText,
+      scheduleText: row.scheduleText,
+      statusText: row.statusText,
+      statusNormalized: row.statusNormalized,
+      lastCheckedAt: row.lastCheckedAt,
+      estimatedAllTimeRevenue: row.estimatedAllTimeRevenue,
+      estimatedAllTimeEnergySold: row.estimatedAllTimeEnergySold,
+      totalSessions: row.totalSessions,
+      observedOccupancyRate: row.observedOccupancyRate,
+    })),
   };
 }
 
@@ -1120,26 +1349,31 @@ export async function getDashboardChargerDetail(
   };
 }
 
-export function buildDashboardHref(filters: DashboardFilters) {
+export function buildDashboardListHref(
+  pathname: string,
+  filters: DashboardFilters,
+  page = 1,
+  visibleFilters: DashboardVisibleFilter[] = ["status", "price", "output"],
+) {
   const params = new URLSearchParams();
 
-  if (filters.status !== "all") {
+  if (visibleFilters.includes("status") && filters.status !== "all") {
     params.set("status", filters.status);
   }
 
-  if (filters.region !== "all") {
-    params.set("region", filters.region);
-  }
-
-  if (filters.price !== "all") {
+  if (visibleFilters.includes("price") && filters.price !== "all") {
     params.set("price", filters.price);
   }
 
-  if (filters.output !== "all") {
+  if (visibleFilters.includes("output") && filters.output !== "all") {
     params.set("output", filters.output);
+  }
+
+  if (page > 1) {
+    params.set("page", String(page));
   }
 
   const query = params.toString();
 
-  return query ? `/dashboard?${query}` : "/dashboard";
+  return query ? `${pathname}?${query}` : pathname;
 }

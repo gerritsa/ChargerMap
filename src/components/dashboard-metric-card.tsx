@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import type { ReactNode } from "react";
 
 import { DashboardInfoButton } from "@/components/dashboard-info-button";
@@ -26,12 +29,15 @@ export function DashboardMetricCard({
   className,
   compact = false,
 }: DashboardMetricCardProps) {
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
+
   return (
     <article
       className={cn(
         compact
-          ? "glass-card min-w-0 rounded-[22px] bg-[rgba(255,250,243,0.82)] p-3.5"
-          : "glass-card min-w-0 rounded-[26px] bg-[rgba(255,250,243,0.82)] p-4 md:p-5",
+          ? "glass-card relative min-w-0 rounded-[22px] bg-[rgba(255,250,243,0.82)] p-3.5"
+          : "glass-card relative min-w-0 rounded-[26px] bg-[rgba(255,250,243,0.82)] p-4 md:p-5",
+        isInfoOpen ? "z-20" : "z-0",
         className,
       )}
     >
@@ -69,6 +75,7 @@ export function DashboardMetricCard({
                 label={label}
                 content={info}
                 align={infoAlign}
+                onOpenChange={setIsInfoOpen}
               />
             ) : null}
           </div>

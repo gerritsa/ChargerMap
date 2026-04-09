@@ -154,7 +154,7 @@ export function MapExperience({
             )}
           >
             <CompactMetricCard
-              label="Toronto live footprint"
+              label="Toronto charger network"
               value={`${formatCompactNumber(initialMetrics.totalChargers)} chargers`}
               icon={<MapPinned className="h-5 w-5" />}
               className="w-[168px] shrink-0 md:w-auto"

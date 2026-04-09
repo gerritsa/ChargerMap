@@ -220,7 +220,7 @@ async function main() {
           cache: "no-store",
         },
         {
-          userAgent: "swtch-map/0.1 (status poller)",
+          userAgent: "charger-map/0.1 (status poller)",
           baseDelayMs: 900,
           maxDelayMs: 8000,
           jitterMs: 200,
@@ -242,7 +242,7 @@ async function main() {
         console.log(
           `${progress} listing ${charger.listing_id}: fetch failed (${response.status})`,
         );
-        await sleepWithJitter(250, 75);
+        await sleepWithJitter(150, 50);
         continue;
       }
 
@@ -259,7 +259,7 @@ async function main() {
         console.log(
           `${progress} listing ${charger.listing_id}: parse failed`,
         );
-        await sleepWithJitter(250, 75);
+        await sleepWithJitter(150, 50);
         continue;
       }
 
@@ -274,7 +274,7 @@ async function main() {
       console.log(
         `${progress} listing ${charger.listing_id}: ${parsed.chargerIdentifier} | ${parsed.statusText}`,
       );
-      await sleepWithJitter(300, 75);
+      await sleepWithJitter(100, 50);
     } catch (pollError) {
       summary.failed += 1;
       const message =
@@ -286,7 +286,7 @@ async function main() {
         errorMessage: message,
       });
       console.log(`${progress} listing ${charger.listing_id}: error | ${message}`);
-      await sleepWithJitter(250, 75);
+      await sleepWithJitter(150, 50);
     }
   }
 

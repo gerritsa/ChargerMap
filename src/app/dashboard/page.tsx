@@ -13,11 +13,10 @@ import {
 import { formatDistanceToNowStrict } from "date-fns";
 
 import { DashboardCollapsibleCard } from "@/components/dashboard-collapsible-card";
-import { DashboardFilterBar } from "@/components/dashboard-filter-bar";
 import { DashboardMetricCard } from "@/components/dashboard-metric-card";
 import { DashboardSectionNav } from "@/components/dashboard-section-nav";
 import { StatusPill } from "@/components/status-pill";
-import { buildDashboardHref, getDashboardData } from "@/lib/dashboard";
+import { getDashboardData } from "@/lib/dashboard";
 import { getStatusStaleLabel, isStatusStale } from "@/lib/status-freshness";
 import {
   cn,
@@ -41,9 +40,12 @@ type DashboardPageProps = {
 export default async function DashboardPage({
   searchParams,
 }: DashboardPageProps) {
-  const params = await searchParams;
-  const data = await getDashboardData(params);
-  const dashboardHref = buildDashboardHref(data.filters);
+  await searchParams;
+  const data = await getDashboardData();
+  const currentOccupancyRate =
+    data.kpis.totalChargers > 0
+      ? data.kpis.currentlyOccupied / data.kpis.totalChargers
+      : 0;
   const topUnavailableRows = data.unavailableRows.slice(0, 10);
   const topOccupancyRows = data.occupancyRows.slice(0, 10);
   const topProfitableRows = data.profitableRows.slice(0, 10);
@@ -54,16 +56,19 @@ export default async function DashboardPage({
         id="snapshot"
         className="glass-card soft-grid scroll-mt-40 rounded-[36px] px-5 py-5 md:px-6 md:py-6"
       >
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-3">
-              <p className="font-mono text-[11px] uppercase tracking-[0.26em] text-[var(--ink-500)]">
+        <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="min-w-0">
+              <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--ink-500)]">
                 Toronto live snapshot
               </p>
+              <h2 className="mt-2 text-xl font-semibold text-[var(--ink-900)] md:text-2xl">
+                City of Toronto charger overview
+              </h2>
             </div>
 
-            <div className="flex shrink-0 justify-end">
-              <div className="flex items-center gap-2 rounded-full border border-[var(--line-soft)] bg-white/76 px-3 py-1.5 text-xs text-[var(--ink-700)]">
+            <div className="flex shrink-0 justify-start md:justify-end">
+              <div className="flex items-center gap-2 rounded-full border border-[var(--line-soft)] bg-white/72 px-3 py-1.5 text-xs text-[var(--ink-700)] shadow-[0_6px_14px_rgba(27,38,46,0.05)]">
                 <span
                   className={cn(
                     "h-2 w-2 rounded-full",
@@ -75,11 +80,11 @@ export default async function DashboardPage({
                 </span>
               </div>
             </div>
-
-            <DashboardSectionNav items={sectionAnchors} />
           </div>
 
-          <DashboardFilterBar filters={data.filters} options={data.options} />
+          <div className="border-t border-[var(--line-soft)]/70 pt-3">
+            <DashboardSectionNav items={sectionAnchors} />
+          </div>
         </div>
       </section>
 
@@ -87,7 +92,7 @@ export default async function DashboardPage({
         <MetricGroup
           eyebrow="Current snapshot"
           title="Toronto overview."
-          description="Live status totals across the filtered Toronto chargers."
+          description="Live status totals across the Toronto charger network."
           columnsClassName="md:grid-cols-4"
         >
           <DashboardMetricCard
@@ -112,11 +117,11 @@ export default async function DashboardPage({
             compact
           />
           <DashboardMetricCard
-            eyebrow="Tracked"
-            label="Observed occupancy"
-            value={formatPercent(data.kpis.observedOccupancyRate)}
+            eyebrow="Current"
+            label="Current occupancy"
+            value={formatPercent(currentOccupancyRate)}
             icon={<Gauge className="h-5 w-5" />}
-            info="Observed occupancy is computed from tracked occupied intervals since first seen. Closed session durations are summed, and any open session contributes time up to the last successful check."
+            info="Current occupancy is the share of chargers in Toronto live scope that are occupied right now."
             infoAlign="right"
             compact
           />
@@ -125,7 +130,7 @@ export default async function DashboardPage({
         <MetricGroup
           eyebrow="Tracked all-time"
           title="Accumulated Toronto totals."
-          description="All-time metrics for the current Toronto filter slice."
+          description="All-time metrics across tracked Toronto chargers."
           columnsClassName="md:grid-cols-3"
         >
           <DashboardMetricCard
@@ -133,7 +138,7 @@ export default async function DashboardPage({
             label="All-time sessions"
             value={formatCompactNumber(data.kpis.allTimeSessions)}
             icon={<TrendingUp className="h-5 w-5" />}
-            info="Session volume is all-time tracked session count for chargers in the current filter view."
+            info="Session volume is the all-time tracked session count across tracked Toronto chargers."
             compact
           />
           <DashboardMetricCard
@@ -149,7 +154,7 @@ export default async function DashboardPage({
             label="Estimated energy sold"
             value={`${formatCompactNumber(data.kpis.estimatedAllTimeEnergySold)} kWh`}
             icon={<BatteryCharging className="h-5 w-5" />}
-            info="Estimated energy sold uses tracked session estimates already stored per charger. It is an all-time total for the filtered set."
+            info="Estimated energy sold uses tracked session estimates already stored per charger. It is an all-time total across tracked Toronto chargers."
             compact
           />
         </MetricGroup>
@@ -161,10 +166,18 @@ export default async function DashboardPage({
         title="Unavailable chargers ranked by ongoing downtime."
         description="Only chargers currently normalized as unavailable appear here, sorted by the longest active downtime interval."
       >
+        <div className="mb-4 flex justify-end">
+          <Link
+            href="/dashboard/reliability"
+            className="inline-flex items-center gap-2 rounded-full border border-[var(--line-soft)] bg-white/72 px-4 py-2 text-sm font-semibold text-[var(--ink-700)] transition-colors hover:bg-white"
+          >
+            View all
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
         <DesktopTable>
           <TableHeaderRow>
             <HeaderCell>Charger</HeaderCell>
-            <HeaderCell>Region</HeaderCell>
             <HeaderCell>Out since</HeaderCell>
             <HeaderCell>Down for</HeaderCell>
             <HeaderCell>Observed occupancy</HeaderCell>
@@ -175,14 +188,14 @@ export default async function DashboardPage({
               <UnavailableDesktopRow
                 key={row.id}
                 row={row}
-                href={buildChargerHref(row.id, dashboardHref)}
+                href={buildChargerHref(row.id)}
                 className={index >= 5 ? "hidden md:table-row-group" : ""}
               />
             ))
           ) : (
             <EmptyRow
-              title="No unavailable chargers in this view"
-              body="Try broadening the filters or clear them to inspect reliability across the Toronto live scope."
+              title="No unavailable chargers right now"
+              body="Every tracked Toronto charger is currently reporting as available or occupied."
             />
           )}
         </DesktopTable>
@@ -193,15 +206,14 @@ export default async function DashboardPage({
               <UnavailableMobileCard
                 key={row.id}
                 row={row}
-                href={buildChargerHref(row.id, dashboardHref)}
+                href={buildChargerHref(row.id)}
                 className={index >= 5 ? "hidden md:block" : ""}
               />
             ))
           ) : (
             <EmptyStateCard
-              title="No unavailable chargers in this view"
-              body="Try broadening the filters or clear them to inspect reliability across the Toronto live scope."
-              href="/dashboard"
+              title="No unavailable chargers right now"
+              body="Every tracked Toronto charger is currently reporting as available or occupied."
             />
           )}
         </MobileCards>
@@ -213,6 +225,15 @@ export default async function DashboardPage({
         title="Chargers ranked by observed tracked occupancy."
         description="Occupancy is based on tracked occupied intervals since first seen, including any currently open session up to the last successful check."
       >
+        <div className="mb-4 flex justify-end">
+          <Link
+            href="/dashboard/occupancy"
+            className="inline-flex items-center gap-2 rounded-full border border-[var(--line-soft)] bg-white/72 px-4 py-2 text-sm font-semibold text-[var(--ink-700)] transition-colors hover:bg-white"
+          >
+            View all
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
         <DesktopTable>
           <TableHeaderRow>
             <HeaderCell>Charger</HeaderCell>
@@ -227,14 +248,14 @@ export default async function DashboardPage({
               <OccupancyDesktopRow
                 key={row.id}
                 row={row}
-                href={buildChargerHref(row.id, dashboardHref)}
+                href={buildChargerHref(row.id)}
                 className={index >= 5 ? "hidden md:table-row-group" : ""}
               />
             ))
           ) : (
             <EmptyRow
-              title="No chargers match these filters"
-              body="The KPI cards stay at zero until the filter set resolves to at least one charger."
+              title="No occupancy data available"
+              body="Tracked occupancy rankings will appear here as more status history accumulates."
             />
           )}
         </DesktopTable>
@@ -245,15 +266,14 @@ export default async function DashboardPage({
               <OccupancyMobileCard
                 key={row.id}
                 row={row}
-                href={buildChargerHref(row.id, dashboardHref)}
+                href={buildChargerHref(row.id)}
                 className={index >= 5 ? "hidden md:block" : ""}
               />
             ))
           ) : (
             <EmptyStateCard
-              title="No chargers match these filters"
-              body="The KPI cards stay at zero until the filter set resolves to at least one charger."
-              href="/dashboard"
+              title="No occupancy data available"
+              body="Tracked occupancy rankings will appear here as more status history accumulates."
             />
           )}
         </MobileCards>
@@ -262,13 +282,21 @@ export default async function DashboardPage({
       <DashboardSection
         id="profitability"
         eyebrow="Expected revenue"
-        title="Expected revenue leaders across the filtered charger set."
+        title="Expected revenue leaders across the Toronto charger network."
         description="These rankings use all-time estimated revenue, with supporting session, energy, and occupancy context."
       >
+        <div className="mb-4 flex justify-end">
+          <Link
+            href="/dashboard/expected-revenue"
+            className="inline-flex items-center gap-2 rounded-full border border-[var(--line-soft)] bg-white/72 px-4 py-2 text-sm font-semibold text-[var(--ink-700)] transition-colors hover:bg-white"
+          >
+            View all
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
         <DesktopTable>
           <TableHeaderRow>
             <HeaderCell>Charger</HeaderCell>
-            <HeaderCell>Region</HeaderCell>
             <HeaderCell className="text-right">Revenue</HeaderCell>
             <HeaderCell className="text-right">Sessions</HeaderCell>
             <HeaderCell className="text-right">Energy sold</HeaderCell>
@@ -279,14 +307,14 @@ export default async function DashboardPage({
               <ProfitabilityDesktopRow
                 key={row.id}
                 row={row}
-                href={buildChargerHref(row.id, dashboardHref)}
+                href={buildChargerHref(row.id)}
                 className={index >= 5 ? "hidden md:table-row-group" : ""}
               />
             ))
           ) : (
             <EmptyRow
-              title="No profitability data in this view"
-              body="Try broadening the filters or clear them to restore revenue rankings."
+              title="No profitability data yet"
+              body="Revenue rankings will appear here as more tracked sessions accumulate."
             />
           )}
         </DesktopTable>
@@ -297,15 +325,14 @@ export default async function DashboardPage({
               <ProfitabilityMobileCard
                 key={row.id}
                 row={row}
-                href={buildChargerHref(row.id, dashboardHref)}
+                href={buildChargerHref(row.id)}
                 className={index >= 5 ? "hidden md:block" : ""}
               />
             ))
           ) : (
             <EmptyStateCard
-              title="No profitability data in this view"
-              body="Try broadening the filters or clear them to restore revenue rankings."
-              href="/dashboard"
+              title="No profitability data yet"
+              body="Revenue rankings will appear here as more tracked sessions accumulate."
             />
           )}
         </MobileCards>
@@ -455,7 +482,6 @@ function UnavailableDesktopRow({
         <Cell className={TABLE_CHARGER_CELL}>
           <ChargerLinkSummary row={row} href={href} showStatus={false} />
         </Cell>
-        <Cell className={TABLE_META_CELL}>{row.region ?? "Unknown"}</Cell>
         <Cell className={TABLE_META_CELL}>{formatDateTime(row.unavailableSince)}</Cell>
         <Cell className={TABLE_META_CELL}>
           {formatDurationCompact(row.unavailableDurationSeconds)}
@@ -539,7 +565,6 @@ function ProfitabilityDesktopRow({
         <Cell className={TABLE_CHARGER_CELL}>
           <ChargerLinkSummary row={row} href={href} showStatus={false} />
         </Cell>
-        <Cell className={TABLE_META_CELL}>{row.region ?? "Unknown"}</Cell>
         <Cell className={TABLE_NUMERIC_CELL}>{formatMoney(row.estimatedAllTimeRevenue)}</Cell>
         <Cell className={TABLE_NUMERIC_CELL}>{formatNumber(row.totalSessions)}</Cell>
         <Cell className={TABLE_NUMERIC_CELL}>
@@ -724,7 +749,6 @@ function MobileCardHeader({
   row: {
     chargerIdentifier: string;
     title: string;
-    region: string | null;
     outputText: string;
     statusText: string;
     statusNormalized: DashboardUnavailableRow["statusNormalized"];
@@ -739,9 +763,7 @@ function MobileCardHeader({
         <p className="mt-1 text-lg font-semibold tracking-tight text-[var(--ink-900)]">
           {row.title}
         </p>
-        <p className="mt-1 text-sm text-[var(--ink-500)]">
-          {(row.region ?? "Unknown")} • {row.outputText}
-        </p>
+        <p className="mt-1 text-sm text-[var(--ink-500)]">{row.outputText}</p>
       </div>
       <StatusPill statusText={row.statusText} statusNormalized={row.statusNormalized} />
     </div>
@@ -770,11 +792,9 @@ function MobileStats({
 function EmptyStateCard({
   title,
   body,
-  href,
 }: {
   title: string;
   body: string;
-  href: string;
 }) {
   return (
     <div className="rounded-[24px] border border-dashed border-[var(--line-soft)] bg-white/72 p-5 text-center">
@@ -783,13 +803,6 @@ function EmptyStateCard({
       </div>
       <p className="mt-4 text-lg font-semibold text-[var(--ink-900)]">{title}</p>
       <p className="mt-2 text-sm leading-6 text-[var(--ink-700)]">{body}</p>
-      <Link
-        href={href}
-        className="mt-4 inline-flex items-center gap-2 rounded-full border border-[var(--line-soft)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--ink-900)] shadow-[0_10px_22px_rgba(27,38,46,0.08)] transition-colors hover:bg-[rgba(247,239,225,0.8)]"
-      >
-        Clear filters
-        <ArrowRight className="h-4 w-4" />
-      </Link>
     </div>
   );
 }
@@ -839,8 +852,6 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
-function buildChargerHref(chargerId: string, dashboardHref: string) {
-  const query = dashboardHref.split("?")[1];
-
-  return query ? `/chargers/${chargerId}?${query}` : `/chargers/${chargerId}`;
+function buildChargerHref(chargerId: string) {
+  return `/chargers/${chargerId}`;
 }

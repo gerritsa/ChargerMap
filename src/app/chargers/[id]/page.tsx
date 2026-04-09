@@ -55,7 +55,7 @@ export default async function ChargerDetailPage({
 
   return (
     <main className="min-h-screen overflow-x-hidden pb-10 pt-0">
-      <AppHeader current="dashboard" />
+      <AppHeader />
 
       <div className="mx-auto flex w-[min(1240px,calc(100%-24px))] flex-col gap-5 py-5 md:w-[min(1240px,calc(100%-32px))]">
         <section className="glass-card soft-grid rounded-[36px] px-6 py-6 md:px-8 md:py-7">
@@ -68,7 +68,7 @@ export default async function ChargerDetailPage({
                     className="inline-flex items-center gap-2 rounded-full border border-[var(--line-soft)] bg-white/76 px-4 py-2 text-sm font-semibold text-[var(--ink-700)]"
                   >
                     <ArrowLeft className="h-4 w-4" />
-                    Back to dashboard
+                    Back to overview
                   </Link>
                   <Link
                     href={mapHref}

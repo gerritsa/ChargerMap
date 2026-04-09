@@ -9,12 +9,14 @@ type DashboardInfoButtonProps = {
   label: string;
   content: string;
   align?: "left" | "right";
+  onOpenChange?: (isOpen: boolean) => void;
 };
 
 export function DashboardInfoButton({
   label,
   content,
   align = "left",
+  onOpenChange,
 }: DashboardInfoButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -40,6 +42,10 @@ export function DashboardInfoButton({
       document.removeEventListener("keydown", handleEscape);
     };
   }, []);
+
+  useEffect(() => {
+    onOpenChange?.(isOpen);
+  }, [isOpen, onOpenChange]);
 
   return (
     <div ref={containerRef} className="relative shrink-0">

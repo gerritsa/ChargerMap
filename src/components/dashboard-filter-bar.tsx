@@ -2,18 +2,24 @@
 
 import { useMemo, useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronDown, SlidersHorizontal } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 
-import type { DashboardFilterOptions, DashboardFilters } from "@/types/dashboard";
+import type {
+  DashboardFilterOptions,
+  DashboardFilters,
+  DashboardVisibleFilter,
+} from "@/types/dashboard";
 
 type DashboardFilterBarProps = {
   filters: DashboardFilters;
   options: DashboardFilterOptions;
+  visibleFilters?: DashboardVisibleFilter[];
 };
 
 export function DashboardFilterBar({
   filters,
   options,
+  visibleFilters = ["status", "price", "output"],
 }: DashboardFilterBarProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -23,10 +29,6 @@ export function DashboardFilterBar({
 
     if (filters.status !== "all") {
       params.set("status", filters.status);
-    }
-
-    if (filters.region !== "all") {
-      params.set("region", filters.region);
     }
 
     if (filters.price !== "all") {
@@ -67,47 +69,44 @@ export function DashboardFilterBar({
 
   return (
     <section className="sticky top-[5.35rem] z-30">
-      <div className="flex flex-wrap items-end gap-3 xl:flex-nowrap">
-        <div className="flex h-11 shrink-0 items-center gap-2 px-1 text-sm font-semibold text-[var(--ink-700)]">
-          <SlidersHorizontal className="h-4 w-4 text-[var(--accent)]" />
-          Filters
-        </div>
-
-        <div className="flex min-w-0 flex-1 flex-wrap items-end gap-2 xl:flex-nowrap">
-          <FilterSelect
-            label="Status"
-            value={filters.status}
-            options={options.status}
-            onChange={(value) => updateFilter("status", value)}
-            disabled={isPending}
-          />
-          <FilterSelect
-            label="Region"
-            value={filters.region}
-            options={options.region}
-            onChange={(value) => updateFilter("region", value)}
-            disabled={isPending}
-          />
-          <FilterSelect
-            label="Pricing"
-            value={filters.price}
-            options={options.price}
-            onChange={(value) => updateFilter("price", value)}
-            disabled={isPending}
-          />
-          <FilterSelect
-            label="Output"
-            value={filters.output}
-            options={options.output}
-            onChange={(value) => updateFilter("output", value)}
-            disabled={isPending}
-          />
+      <div className="flex flex-col gap-2">
+        <p className="pl-1 text-sm font-medium text-[var(--ink-600)]">
+          Show only:
+        </p>
+        <div className="flex min-w-0 flex-wrap items-end gap-2 xl:flex-nowrap">
+          {visibleFilters.includes("status") ? (
+            <FilterSelect
+              label="Status"
+              value={filters.status}
+              options={options.status}
+              onChange={(value) => updateFilter("status", value)}
+              disabled={isPending}
+            />
+          ) : null}
+          {visibleFilters.includes("price") ? (
+            <FilterSelect
+              label="Pricing"
+              value={filters.price}
+              options={options.price}
+              onChange={(value) => updateFilter("price", value)}
+              disabled={isPending}
+            />
+          ) : null}
+          {visibleFilters.includes("output") ? (
+            <FilterSelect
+              label="Output"
+              value={filters.output}
+              options={options.output}
+              onChange={(value) => updateFilter("output", value)}
+              disabled={isPending}
+            />
+          ) : null}
 
           <button
             type="button"
             onClick={clearFilters}
             disabled={isPending}
-            className="h-11 shrink-0 self-end rounded-[18px] border border-[var(--line-soft)] bg-white/78 px-4 text-sm font-semibold text-[var(--ink-700)] shadow-[0_8px_18px_rgba(27,38,46,0.06)] transition-colors hover:bg-white disabled:cursor-wait disabled:opacity-70 xl:w-auto"
+            className="h-10 shrink-0 self-end px-2 text-sm font-semibold text-[var(--ink-600)] transition-colors hover:text-[var(--ink-900)] disabled:cursor-wait disabled:opacity-70 xl:w-auto"
           >
             Clear filters
           </button>
@@ -131,11 +130,11 @@ function FilterSelect({
   disabled: boolean;
 }) {
   return (
-    <label className="min-w-[150px] flex-1">
-      <span className="mb-1.5 block shrink-0 pl-2 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--ink-500)]">
+    <label className="min-w-[170px] flex-1">
+      <span className="mb-1.5 block shrink-0 pl-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--ink-500)]">
         {label}
       </span>
-      <div className="relative flex h-11 items-center rounded-[18px] border border-[var(--line-soft)] bg-white/78 px-3 text-sm text-[var(--ink-700)] shadow-[0_8px_18px_rgba(27,38,46,0.06)]">
+      <div className="relative flex h-10 items-center rounded-[16px] border border-[var(--line-soft)] bg-white/78 px-3 text-sm text-[var(--ink-700)] shadow-[0_6px_14px_rgba(27,38,46,0.05)]">
         <select
           value={value}
           disabled={disabled}

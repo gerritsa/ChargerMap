@@ -27,7 +27,7 @@ export default async function Home({ searchParams }: HomePageProps) {
 
   return (
     <main className="min-h-screen overflow-hidden pb-0 pt-0">
-      <AppHeader current="map" />
+      <AppHeader />
       <MapExperience
         initialChargers={summaries}
         initialMetrics={networkMetrics}

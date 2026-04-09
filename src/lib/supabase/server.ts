@@ -14,7 +14,7 @@ export function createServerSupabaseClient() {
     },
     global: {
       headers: {
-        "X-Client-Info": "swtch-map-web",
+        "X-Client-Info": "charger-map-web",
       },
     },
   });

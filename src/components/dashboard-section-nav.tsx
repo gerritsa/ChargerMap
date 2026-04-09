@@ -48,9 +48,9 @@ export function DashboardSectionNav({ items }: DashboardSectionNavProps) {
   }
 
   return (
-    <nav className="flex flex-wrap items-center gap-2" aria-label="Dashboard sections">
-      <span className="mr-1 text-sm font-medium text-[var(--ink-500)]">
-        Go directly to
+    <nav className="flex flex-wrap items-center gap-2" aria-label="Overview sections">
+      <span className="mr-2 text-sm font-medium text-[var(--ink-600)]">
+        On this page:
       </span>
       {items.map((item) => (
         <a
@@ -60,7 +60,7 @@ export function DashboardSectionNav({ items }: DashboardSectionNavProps) {
             event.preventDefault();
             handleClick(item.href);
           }}
-          className="rounded-full border border-[var(--line-soft)] bg-white/72 px-3 py-2 text-sm font-medium text-[var(--ink-700)] transition-colors hover:bg-white"
+          className="rounded-full border border-[var(--line-soft)] bg-white/60 px-3 py-1.5 text-sm font-medium text-[var(--ink-600)] transition-colors hover:bg-white hover:text-[var(--ink-900)]"
         >
           {item.label}
         </a>

@@ -29,6 +29,15 @@ export type DashboardFilterOptions = {
   output: DashboardFilterOption[];
 };
 
+export type DashboardVisibleFilter = "status" | "price" | "output";
+
+export type DashboardPagination = {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+};
+
 export type DashboardKpis = {
   totalChargers: number;
   currentlyOccupied: number;
@@ -82,14 +91,33 @@ export type DashboardProfitabilityRow = DashboardTableCharger & {
 };
 
 export type DashboardData = {
-  filters: DashboardFilters;
-  options: DashboardFilterOptions;
   kpis: DashboardKpis;
   occupancyRows: DashboardOccupancyRow[];
   unavailableRows: DashboardUnavailableRow[];
   profitableRows: DashboardProfitabilityRow[];
   generatedAt: string;
   hasLiveData: boolean;
+};
+
+export type DashboardListBaseData = {
+  filters: DashboardFilters;
+  options: DashboardFilterOptions;
+  visibleFilters: DashboardVisibleFilter[];
+  pagination: DashboardPagination;
+  generatedAt: string;
+  hasLiveData: boolean;
+};
+
+export type DashboardUnavailableListData = DashboardListBaseData & {
+  rows: DashboardUnavailableRow[];
+};
+
+export type DashboardOccupancyListData = DashboardListBaseData & {
+  rows: DashboardOccupancyRow[];
+};
+
+export type DashboardProfitabilityListData = DashboardListBaseData & {
+  rows: DashboardProfitabilityRow[];
 };
 
 export type DashboardChargerSession = {

@@ -18,7 +18,7 @@ export async function geocodeAddress(
     {
       headers: {
         Accept: "application/json",
-        "User-Agent": "swtch-map/0.1 (discovery geocoder)",
+        "User-Agent": "charger-map/0.1 (discovery geocoder)",
       },
       cache: "no-store",
     },

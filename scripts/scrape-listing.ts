@@ -23,7 +23,7 @@ async function main() {
       cache: "no-store",
     },
     {
-      userAgent: "swtch-map/0.1 (manual listing scraper)",
+      userAgent: "charger-map/0.1 (manual listing scraper)",
       baseDelayMs: 1200,
       maxDelayMs: 10000,
       jitterMs: 250,

@@ -9,7 +9,7 @@ export default function DashboardLayout({
 }>) {
   return (
     <main className="min-h-screen overflow-x-hidden pb-10 pt-0">
-      <AppHeader current="dashboard" />
+      <AppHeader />
       {children}
     </main>
   );

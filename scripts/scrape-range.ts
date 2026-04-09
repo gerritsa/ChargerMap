@@ -169,7 +169,7 @@ async function main() {
           cache: "no-store",
         },
         {
-          userAgent: "swtch-map/0.1 (bounded discovery scraper)",
+          userAgent: "charger-map/0.1 (bounded discovery scraper)",
           baseDelayMs: 1200,
           maxDelayMs: 10000,
           jitterMs: 250,
@@ -280,7 +280,7 @@ async function main() {
         await markDecommissioned(listingId);
       }
 
-      await sleepWithJitter(200, 75);
+      await sleepWithJitter(150, 50);
       continue;
     }
 
@@ -295,7 +295,7 @@ async function main() {
       console.log(`${progress} listing ${listingId}: written to Supabase`);
     }
 
-    await sleepWithJitter(150, 75);
+    await sleepWithJitter(100, 50);
   }
 
   console.log("Discovery scrape complete.");
