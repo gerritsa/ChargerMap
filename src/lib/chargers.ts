@@ -63,8 +63,8 @@ type SupabaseMapNetworkMetricRow = {
   estimated_all_time_kwh: number | null;
 };
 
-type SupabaseSessionAggregateRow = {
-  estimated_kwh: number | null;
+type SupabaseAggregateValueRow = {
+  total_estimated_kwh: number | null;
 };
 
 const MAP_PAGE_SIZE = 1000;
@@ -156,21 +156,42 @@ async function getLast24HoursEstimatedKwhForChargers(
     return 0;
   }
 
-  const sinceIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const { data, error } = await supabase
-    .from("charger_sessions")
-    .select("estimated_kwh")
-    .in("charger_id", chargerIds)
-    .gte("started_at", sinceIso);
+  const { data, error } = await supabase.rpc(
+    "get_public_estimated_kwh_for_chargers",
+    {
+      target_charger_ids: chargerIds,
+    },
+  );
 
-  if (error || !data) {
+  if (error) {
     return 0;
   }
 
-  return (((data as unknown) as SupabaseSessionAggregateRow[]) ?? []).reduce(
-    (sum, row) => sum + (row.estimated_kwh ?? 0),
-    0,
+  const row = ((data ?? []) as SupabaseAggregateValueRow[])[0];
+  return row?.total_estimated_kwh ?? 0;
+}
+
+async function getLast24HoursEstimatedKwhForScope(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  scope: string,
+) {
+  if (!supabase) {
+    return 0;
+  }
+
+  const { data, error } = await supabase.rpc(
+    "get_public_estimated_kwh_for_scope",
+    {
+      target_scope: scope,
+    },
   );
+
+  if (error) {
+    return 0;
+  }
+
+  const row = ((data ?? []) as SupabaseAggregateValueRow[])[0];
+  return row?.total_estimated_kwh ?? 0;
 }
 
 function buildMockChargerGroup(chargerId: string) {
@@ -264,20 +285,10 @@ export async function getMapNetworkMetrics(): Promise<ChargerMapMetrics> {
 
   const rows = data as unknown as SupabaseMapNetworkMetricRow[];
   const first = rows[0];
-  const { data: chargerRows, error: chargerRowsError } = await supabase
-    .from("chargers")
-    .select("id")
-    .eq("is_active", true)
-    .eq("is_decommissioned", false)
-    .eq("region", "toronto");
-  const last24HoursEstimatedKwh = chargerRowsError
-    ? 0
-    : await getLast24HoursEstimatedKwhForChargers(
-        supabase,
-        (((chargerRows ?? []) as Array<{ id: string | null }>).map((row) => row.id).filter(
-          (id): id is string => Boolean(id),
-        )),
-      );
+  const last24HoursEstimatedKwh = await getLast24HoursEstimatedKwhForScope(
+    supabase,
+    "toronto",
+  );
 
   return {
     totalChargers: first?.total_chargers ?? 0,

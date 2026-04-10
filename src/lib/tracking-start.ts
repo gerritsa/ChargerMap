@@ -1,7 +1,6 @@
-import { GLOBAL_STATUS_TRACKING_STARTED_AT_KEY } from "@/lib/status-tracking";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
-type AppSettingRow = {
+type TrackingStartRow = {
   value_text: string | null;
 };
 
@@ -12,18 +11,15 @@ export async function getTrackingStartedAtForHeader() {
     return null;
   }
 
-  const { data, error } = await supabase
-    .from("app_settings")
-    .select("value_text")
-    .eq("setting_key", GLOBAL_STATUS_TRACKING_STARTED_AT_KEY)
-    .maybeSingle<AppSettingRow>();
+  const { data, error } = await supabase.rpc("get_public_tracking_started_at");
 
   if (error) {
     console.error("Failed to load tracking start for header", error.message);
     return null;
   }
 
-  return data?.value_text ?? null;
+  const row = ((data ?? []) as TrackingStartRow[])[0];
+  return row?.value_text ?? null;
 }
 
 export function formatTrackingStartedAtLabel(value: string | null) {

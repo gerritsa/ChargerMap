@@ -28,8 +28,9 @@ import type { ChargerStatusNormalized } from "@/types/charger";
 type SearchParamValue = string | string[] | undefined;
 type DashboardQueryParams = Record<string, SearchParamValue>;
 
-type SupabaseDashboardJoinedChargerRow = {
-  listing_id: number;
+type SupabaseDashboardRow = {
+  charger_id: string;
+  listing_id: number | null;
   charger_identifier: string | null;
   title: string | null;
   image_url: string | null;
@@ -42,15 +43,6 @@ type SupabaseDashboardJoinedChargerRow = {
   price_text: string | null;
   schedule_text: string | null;
   price_model_type: string | null;
-  pricing_base_type: string | null;
-  pricing_structure_type: string | null;
-  first_seen_at: string | null;
-  is_active?: boolean | null;
-  is_decommissioned?: boolean | null;
-};
-
-type SupabaseDashboardStatsRow = {
-  charger_id: string;
   status_text: string | null;
   status_normalized: ChargerStatusNormalized | null;
   unavailable_since: string | null;
@@ -65,7 +57,7 @@ type SupabaseDashboardStatsRow = {
   tracked_seconds: number | null;
   observed_occupancy_rate: number | null;
   current_session_started_at: string | null;
-  chargers: SupabaseDashboardJoinedChargerRow | SupabaseDashboardJoinedChargerRow[] | null;
+  first_seen_at: string | null;
 };
 
 type SupabaseSessionRow = {
@@ -85,6 +77,15 @@ type SupabaseDashboardSnapshotRow = {
   estimated_all_time_kwh: number | null;
   observed_occupied_seconds: number | null;
   tracked_seconds: number | null;
+};
+
+type SupabaseCountRow = {
+  total_count: number | null;
+};
+
+type SupabaseRawStatusRow = {
+  status_text: string | null;
+  status_count: number | null;
 };
 
 type DashboardBaseRow = {
@@ -274,68 +275,17 @@ const mockDashboardMeta = new Map<
   ],
 ]);
 
-function normalizeJoinedCharger(
-  value:
-    | SupabaseDashboardJoinedChargerRow
-    | SupabaseDashboardJoinedChargerRow[]
-    | null,
-) {
-  return Array.isArray(value) ? value[0] ?? null : value;
-}
-
-function getDashboardBaseSelect() {
-  return `
-    charger_id,
-    status_text,
-    status_normalized,
-    unavailable_since,
-    last_checked_at,
-    region,
-    price_bucket,
-    output_bucket,
-    total_sessions,
-    estimated_all_time_revenue,
-    estimated_all_time_kwh,
-    observed_occupied_seconds,
-    tracked_seconds,
-    observed_occupancy_rate,
-    current_session_started_at,
-    chargers!inner(
-      listing_id,
-      charger_identifier,
-      title,
-      image_url,
-      address_text,
-      map_url,
-      lat,
-      lng,
-      output_kw,
-      output_text,
-      price_text,
-      schedule_text,
-      price_model_type,
-      pricing_base_type,
-      pricing_structure_type,
-      first_seen_at,
-      is_active,
-      is_decommissioned
-    )
-  `;
-}
-
 function normalizeSupabaseDashboardRow(
-  row: SupabaseDashboardStatsRow,
+  row: SupabaseDashboardRow,
   now: Date,
 ): DashboardBaseRow | null {
-  const joined = normalizeJoinedCharger(row.chargers);
-
-  if (!joined) {
+  if (row.listing_id == null) {
     return null;
   }
 
   const chargerIdentifier =
-    joined.charger_identifier?.trim() || `SWTCH-${joined.listing_id}`;
-  const firstSeenAt = joined.first_seen_at ?? now.toISOString();
+    row.charger_identifier?.trim() || `SWTCH-${row.listing_id}`;
+  const firstSeenAt = row.first_seen_at ?? now.toISOString();
   const lastCheckedAt = row.last_checked_at ?? now.toISOString();
   const referenceTime = new Date(lastCheckedAt);
   const trackedSeconds =
@@ -354,27 +304,27 @@ function normalizeSupabaseDashboardRow(
 
   return {
     id: row.charger_id,
-    listingId: joined.listing_id,
+    listingId: row.listing_id,
     chargerIdentifier,
-    title: joined.title ?? `SWTCH Charger ${chargerIdentifier}`,
-    imageUrl: joined.image_url,
-    address: joined.address_text,
-    mapUrl: joined.map_url,
-    lat: joined.lat,
-    lng: joined.lng,
+    title: row.title ?? `SWTCH Charger ${chargerIdentifier}`,
+    imageUrl: row.image_url,
+    address: row.address_text,
+    mapUrl: row.map_url,
+    lat: row.lat,
+    lng: row.lng,
     region: row.region,
-    outputKw: joined.output_kw,
-    outputBucket: row.output_bucket ?? getOutputBucket(joined.output_kw),
-    outputText: joined.output_text ?? "Unknown output",
-    priceText: joined.price_text ?? "Pricing pending",
-    scheduleText: joined.schedule_text ?? "Schedule pending",
-    priceModelType: joined.price_model_type,
+    outputKw: row.output_kw,
+    outputBucket: row.output_bucket ?? getOutputBucket(row.output_kw),
+    outputText: row.output_text ?? "Unknown output",
+    priceText: row.price_text ?? "Pricing pending",
+    scheduleText: row.schedule_text ?? "Schedule pending",
+    priceModelType: row.price_model_type,
     priceBucket:
       (row.price_bucket as Exclude<DashboardPriceBucket, "all"> | null) ??
       derivePriceBucketFromLegacyFields({
-        priceModelType: joined.price_model_type,
-        pricingBaseType: joined.pricing_base_type,
-        pricingStructureType: joined.pricing_structure_type,
+        priceModelType: row.price_model_type,
+        pricingBaseType: null,
+        pricingStructureType: null,
       }),
     estimatedAllTimeRevenue: row.estimated_all_time_revenue ?? 0,
     estimatedAllTimeEnergySold: row.estimated_all_time_kwh ?? 0,
@@ -635,56 +585,25 @@ async function fetchDashboardTopRows(
       .slice(options.offset ?? 0, (options.offset ?? 0) + (options.limit ?? 10));
   }
 
-  let query = supabase
-    .from("charger_stats")
-    .select(getDashboardBaseSelect())
-    .eq("chargers.tracking_scope", "toronto")
-    .eq("chargers.is_active", true)
-    .eq("chargers.is_decommissioned", false);
-
-  if (filters.status !== "all") {
-    query = query.eq("status_normalized", filters.status);
-  }
-
-  if (filters.region !== "all") {
-    query = query.eq("region", filters.region);
-  }
-
-  if (filters.rawStatus !== "all") {
-    query = query.eq("status_text", filters.rawStatus);
-  }
-
-  if (filters.price !== "all") {
-    query = query.eq("price_bucket", filters.price);
-  }
-
-  if (filters.output !== "all") {
-    query = query.eq("output_bucket", filters.output);
-  }
-
-  if (shouldExcludeNotLive) {
-    query = query.neq("status_normalized", "not_live");
-  }
-
-  if (options.statusFilter) {
-    query = query.eq("status_normalized", options.statusFilter);
-  }
-
-  query = query
-    .order(options.orderBy, { ascending: options.ascending ?? false })
-    .order("total_sessions", { ascending: false })
-    .range(
-      options.offset ?? 0,
-      (options.offset ?? 0) + (options.limit ?? 10) - 1,
-    );
-
-  const { data, error } = await query;
+  const { data, error } = await supabase.rpc("get_public_dashboard_rows", {
+    filter_status: filters.status === "all" ? null : filters.status,
+    filter_raw_status: filters.rawStatus === "all" ? null : filters.rawStatus,
+    filter_region: filters.region === "all" ? null : filters.region,
+    filter_price: filters.price === "all" ? null : filters.price,
+    filter_output: filters.output === "all" ? null : filters.output,
+    target_status_filter: options.statusFilter ?? null,
+    exclude_not_live: shouldExcludeNotLive,
+    target_order_by: options.orderBy,
+    target_ascending: options.ascending ?? false,
+    target_limit: options.limit ?? 10,
+    target_offset: options.offset ?? 0,
+  });
 
   if (error || !data) {
     return [] as DashboardBaseRow[];
   }
 
-  return ((data as unknown) as SupabaseDashboardStatsRow[])
+  return ((data as unknown) as SupabaseDashboardRow[])
     .map((row) => normalizeSupabaseDashboardRow(row, now))
     .filter((row): row is DashboardBaseRow => Boolean(row));
 }
@@ -718,48 +637,22 @@ async function countDashboardRows(
     return rows.length;
   }
 
-  let query = supabase
-    .from("charger_stats")
-    .select("charger_id, chargers!inner(id)", { count: "exact", head: true })
-    .eq("chargers.tracking_scope", "toronto")
-    .eq("chargers.is_active", true)
-    .eq("chargers.is_decommissioned", false);
-
-  if (filters.status !== "all") {
-    query = query.eq("status_normalized", filters.status);
-  }
-
-  if (filters.region !== "all") {
-    query = query.eq("region", filters.region);
-  }
-
-  if (filters.rawStatus !== "all") {
-    query = query.eq("status_text", filters.rawStatus);
-  }
-
-  if (filters.price !== "all") {
-    query = query.eq("price_bucket", filters.price);
-  }
-
-  if (filters.output !== "all") {
-    query = query.eq("output_bucket", filters.output);
-  }
-
-  if (shouldExcludeNotLive) {
-    query = query.neq("status_normalized", "not_live");
-  }
-
-  if (options.statusFilter) {
-    query = query.eq("status_normalized", options.statusFilter);
-  }
-
-  const { count, error } = await query;
+  const { data, error } = await supabase.rpc("get_public_dashboard_row_count", {
+    filter_status: filters.status === "all" ? null : filters.status,
+    filter_raw_status: filters.rawStatus === "all" ? null : filters.rawStatus,
+    filter_region: filters.region === "all" ? null : filters.region,
+    filter_price: filters.price === "all" ? null : filters.price,
+    filter_output: filters.output === "all" ? null : filters.output,
+    target_status_filter: options.statusFilter ?? null,
+    exclude_not_live: shouldExcludeNotLive,
+  });
 
   if (error) {
     return 0;
   }
 
-  return count ?? 0;
+  const row = ((data ?? []) as SupabaseCountRow[])[0];
+  return row?.total_count ?? 0;
 }
 
 async function fetchDashboardFilterOptions(
@@ -875,53 +768,25 @@ async function fetchDashboardRawStatusOptions(
       .map(([value]) => value);
   }
 
-  let query = supabase
-    .from("charger_stats")
-    .select("status_text, chargers!inner(id)")
-    .eq("chargers.tracking_scope", "toronto")
-    .eq("chargers.is_active", true)
-    .eq("chargers.is_decommissioned", false);
-
-  if (filters.status !== "all") {
-    query = query.eq("status_normalized", filters.status);
-  }
-
-  if (filters.region !== "all") {
-    query = query.eq("region", filters.region);
-  }
-
-  if (filters.price !== "all") {
-    query = query.eq("price_bucket", filters.price);
-  }
-
-  if (filters.output !== "all") {
-    query = query.eq("output_bucket", filters.output);
-  }
-
-  if (shouldExcludeNotLive) {
-    query = query.neq("status_normalized", "not_live");
-  }
-
-  if (options.statusFilter) {
-    query = query.eq("status_normalized", options.statusFilter);
-  }
-
-  const { data, error } = await query;
+  const { data, error } = await supabase.rpc("get_public_dashboard_raw_statuses", {
+    filter_status: filters.status === "all" ? null : filters.status,
+    filter_region: filters.region === "all" ? null : filters.region,
+    filter_price: filters.price === "all" ? null : filters.price,
+    filter_output: filters.output === "all" ? null : filters.output,
+    target_status_filter: options.statusFilter ?? null,
+    exclude_not_live: shouldExcludeNotLive,
+  });
 
   if (error || !data) {
     return [] as string[];
   }
 
-  const statusCounts = (((data as unknown) as Array<{ status_text: string | null }>) ?? []).reduce(
-    (counts, row) => {
-      const statusText = row.status_text?.trim() || "UNKNOWN";
-      counts.set(statusText, (counts.get(statusText) ?? 0) + 1);
-      return counts;
-    },
-    new Map<string, number>(),
-  );
+  const statusCounts = (((data as unknown) as SupabaseRawStatusRow[]) ?? []).map((row) => [
+    row.status_text?.trim() || "UNKNOWN",
+    row.status_count ?? 0,
+  ] as const);
 
-  return Array.from(statusCounts.entries())
+  return Array.from(statusCounts)
     .sort((left, right) => {
       if (right[1] !== left[1]) {
         return right[1] - left[1];
@@ -1443,23 +1308,19 @@ export async function getDashboardChargerDetail(
     };
   }
 
-  const rowQuery = supabase
-    .from("charger_stats")
-    .select(getDashboardBaseSelect())
-    .eq("charger_id", chargerId)
-    .eq("chargers.tracking_scope", "toronto")
-    .eq("chargers.is_active", true)
-    .eq("chargers.is_decommissioned", false)
-    .limit(1);
-
-  const { data: rows, error: rowError } = await rowQuery;
+  const { data: rows, error: rowError } = await supabase.rpc(
+    "get_public_dashboard_charger_detail",
+    {
+      target_charger_id: chargerId,
+    },
+  );
 
   if (rowError || !rows?.length) {
     return null;
   }
 
   const charger = normalizeSupabaseDashboardRow(
-    rows[0] as unknown as SupabaseDashboardStatsRow,
+    rows[0] as unknown as SupabaseDashboardRow,
     now,
   );
 
@@ -1467,12 +1328,13 @@ export async function getDashboardChargerDetail(
     return null;
   }
 
-  const { data: sessions, error: sessionError } = await supabase
-    .from("charger_sessions")
-    .select("id, started_at, ended_at, estimated_kwh, estimated_revenue")
-    .eq("charger_id", chargerId)
-    .order("started_at", { ascending: false })
-    .limit(8);
+  const { data: sessions, error: sessionError } = await supabase.rpc(
+    "get_public_dashboard_recent_sessions",
+    {
+      target_charger_id: chargerId,
+      target_limit: 8,
+    },
+  );
 
   if (sessionError) {
     console.error("Failed to load charger sessions", sessionError.message);

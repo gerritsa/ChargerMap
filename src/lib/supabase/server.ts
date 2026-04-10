@@ -1,13 +1,20 @@
 import { createClient } from "@supabase/supabase-js";
 
-import { env, hasPublicSupabaseEnv } from "@/lib/env";
+import { env, hasServerSupabaseEnv } from "@/lib/env";
 
 export function createServerSupabaseClient() {
-  if (!hasPublicSupabaseEnv()) {
+  if (!hasServerSupabaseEnv() || !env.supabaseUrl) {
     return null;
   }
 
-  return createClient(env.supabaseUrl!, env.supabasePublishableKey!, {
+  const accessKey =
+    env.supabaseServiceRoleKey ?? env.supabasePublishableKey;
+
+  if (!accessKey) {
+    return null;
+  }
+
+  return createClient(env.supabaseUrl, accessKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false,

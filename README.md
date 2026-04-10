@@ -34,7 +34,7 @@ Required for the public app:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY`
 
-Required later for scraper upserts and scheduled writes:
+Required for server-side reads, scraper upserts, and scheduled writes:
 
 - `SUPABASE_SERVICE_ROLE_KEY`
 

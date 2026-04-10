@@ -10,3 +10,10 @@ export const env = optional;
 export function hasPublicSupabaseEnv() {
   return Boolean(optional.supabaseUrl && optional.supabasePublishableKey);
 }
+
+export function hasServerSupabaseEnv() {
+  return Boolean(
+    optional.supabaseUrl &&
+      (optional.supabaseServiceRoleKey || optional.supabasePublishableKey),
+  );
+}
