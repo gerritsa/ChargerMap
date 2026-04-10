@@ -1,0 +1,5 @@
+project_id = "swtch-map"
+
+[functions.poll-status-batch]
+verify_jwt = false
+import_map = "./functions/poll-status-batch/deno.json"

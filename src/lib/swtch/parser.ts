@@ -2,14 +2,20 @@ import * as cheerio from "cheerio";
 import { z } from "zod";
 
 import { parsePricing } from "@/lib/swtch/pricing";
-import { normalizeStatus } from "@/lib/swtch/status";
+import { normalizeStatus } from "@/lib/swtch/normalize-status";
 
 const parsedListingSchema = z.object({
   listingId: z.number(),
   chargerIdentifier: z.string(),
   title: z.string(),
   statusText: z.string(),
-  statusNormalized: z.enum(["available", "occupied", "unavailable", "unknown"]),
+  statusNormalized: z.enum([
+    "available",
+    "occupied",
+    "unavailable",
+    "not_live",
+    "unknown",
+  ]),
   priceText: z.string(),
   priceTextRaw: z.string(),
   priceNoteText: z.string().nullable(),
@@ -66,7 +72,13 @@ const parsedStatusSnapshotSchema = z.object({
   listingId: z.number(),
   chargerIdentifier: z.string(),
   statusText: z.string(),
-  statusNormalized: z.enum(["available", "occupied", "unavailable", "unknown"]),
+  statusNormalized: z.enum([
+    "available",
+    "occupied",
+    "unavailable",
+    "not_live",
+    "unknown",
+  ]),
 });
 
 export type ParsedSwtchStatusSnapshot = z.infer<

@@ -18,6 +18,7 @@ export function StatusPill({
         statusNormalized === "available" && "status-available",
         statusNormalized === "occupied" && "status-occupied",
         statusNormalized === "unavailable" && "status-unavailable",
+        statusNormalized === "not_live" && "status-not-live",
         statusNormalized === "unknown" && "status-unknown",
       )}
     >

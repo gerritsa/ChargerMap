@@ -34,10 +34,7 @@ html {
 
 body {
   min-height: 100vh;
-  background:
-    radial-gradient(circle at top left, rgba(228, 184, 90, 0.24), transparent 28%),
-    radial-gradient(circle at top right, rgba(47, 142, 201, 0.18), transparent 32%),
-    linear-gradient(180deg, #f8f3ea 0%, #f2ecdf 100%);
+  background: linear-gradient(180deg, #f8f4ec 0%, #f4efe5 100%);
   color: var(--ink-900);
   font-family: var(--font-ui), sans-serif;
 }
@@ -109,6 +106,11 @@ a {
 .status-unavailable {
   background: var(--danger-soft);
   color: #8b3829;
+}
+
+.status-not-live {
+  background: rgba(198, 162, 75, 0.18);
+  color: #7a5b12;
 }
 
 .status-unknown {

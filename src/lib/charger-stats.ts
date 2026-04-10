@@ -168,8 +168,10 @@ export function buildMapMetricsFromDetails(chargers: Charger[]): ChargerMapMetri
         acc.currentlyOccupied += 1;
       } else if (charger.statusNormalized === "unavailable") {
         acc.unavailableNow += 1;
-      } else {
+      } else if (charger.statusNormalized === "available") {
         acc.availableNow += 1;
+      } else if (charger.statusNormalized === "not_live") {
+        acc.notLiveNow += 1;
       }
 
       return acc;
@@ -179,9 +181,11 @@ export function buildMapMetricsFromDetails(chargers: Charger[]): ChargerMapMetri
       currentlyOccupied: 0,
       availableNow: 0,
       unavailableNow: 0,
+      notLiveNow: 0,
       allTimeSessions: 0,
       allTimeEstimatedRevenue: 0,
       allTimeEstimatedKwh: 0,
+      last24HoursEstimatedKwh: 0,
       rawStatusBreakdown: [],
     },
   );
@@ -204,6 +208,7 @@ export function buildMapMetricsFromSummariesAndRows(
     estimatedAllTimeRevenue: number;
     estimatedAllTimeKwh: number;
   }>,
+  last24HoursEstimatedKwh = 0,
 ): ChargerMapMetrics {
   const statusCounts = new Map<
     string,
@@ -251,9 +256,11 @@ export function buildMapMetricsFromSummariesAndRows(
       .length,
     unavailableNow: summaries.filter((summary) => summary.statusNormalized === "unavailable")
       .length,
+    notLiveNow: summaries.filter((summary) => summary.statusNormalized === "not_live").length,
     allTimeSessions: totals.allTimeSessions,
     allTimeEstimatedRevenue: totals.allTimeEstimatedRevenue,
     allTimeEstimatedKwh: totals.allTimeEstimatedKwh,
+    last24HoursEstimatedKwh,
     rawStatusBreakdown: Array.from(statusCounts.values()).sort((left, right) => {
       if (right.count !== left.count) {
         return right.count - left.count;

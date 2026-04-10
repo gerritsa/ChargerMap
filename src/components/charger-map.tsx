@@ -70,6 +70,8 @@ const unclusteredPointLayer: LayerProps = {
       "#2f8ec9",
       "unavailable",
       "#c95d46",
+      "not_live",
+      "#c6a24b",
       "#8b95a1",
     ],
   },

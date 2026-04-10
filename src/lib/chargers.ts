@@ -63,6 +63,10 @@ type SupabaseMapNetworkMetricRow = {
   estimated_all_time_kwh: number | null;
 };
 
+type SupabaseSessionAggregateRow = {
+  estimated_kwh: number | null;
+};
+
 const MAP_PAGE_SIZE = 1000;
 
 function isWithinBounds(bounds: MapBounds, lat: number, lng: number) {
@@ -144,6 +148,31 @@ function buildMockMapData(bounds: MapBounds): MapDataResponse {
   };
 }
 
+async function getLast24HoursEstimatedKwhForChargers(
+  supabase: ReturnType<typeof createServerSupabaseClient>,
+  chargerIds: string[],
+) {
+  if (!supabase || chargerIds.length === 0) {
+    return 0;
+  }
+
+  const sinceIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from("charger_sessions")
+    .select("estimated_kwh")
+    .in("charger_id", chargerIds)
+    .gte("started_at", sinceIso);
+
+  if (error || !data) {
+    return 0;
+  }
+
+  return (((data as unknown) as SupabaseSessionAggregateRow[]) ?? []).reduce(
+    (sum, row) => sum + (row.estimated_kwh ?? 0),
+    0,
+  );
+}
+
 function buildMockChargerGroup(chargerId: string) {
   const selected = mockChargers.find((charger) => charger.id === chargerId);
 
@@ -199,6 +228,10 @@ export async function getMapDataForBounds(
   const summaries = rows
     .map((row) => normalizeSummaryRow(row))
     .filter((summary): summary is MapChargerSummary => Boolean(summary));
+  const last24HoursEstimatedKwh = await getLast24HoursEstimatedKwhForChargers(
+    supabase,
+    summaries.map((summary) => summary.id),
+  );
 
   return {
     summaries,
@@ -209,6 +242,7 @@ export async function getMapDataForBounds(
         estimatedAllTimeRevenue: row.estimated_all_time_revenue ?? 0,
         estimatedAllTimeKwh: row.estimated_all_time_kwh ?? 0,
       })),
+      last24HoursEstimatedKwh,
     ),
   };
 }
@@ -230,6 +264,20 @@ export async function getMapNetworkMetrics(): Promise<ChargerMapMetrics> {
 
   const rows = data as unknown as SupabaseMapNetworkMetricRow[];
   const first = rows[0];
+  const { data: chargerRows, error: chargerRowsError } = await supabase
+    .from("chargers")
+    .select("id")
+    .eq("is_active", true)
+    .eq("is_decommissioned", false)
+    .eq("region", "toronto");
+  const last24HoursEstimatedKwh = chargerRowsError
+    ? 0
+    : await getLast24HoursEstimatedKwhForChargers(
+        supabase,
+        (((chargerRows ?? []) as Array<{ id: string | null }>).map((row) => row.id).filter(
+          (id): id is string => Boolean(id),
+        )),
+      );
 
   return {
     totalChargers: first?.total_chargers ?? 0,
@@ -248,9 +296,15 @@ export async function getMapNetworkMetrics(): Promise<ChargerMapMetrics> {
         sum + (row.status_normalized === "unavailable" ? row.status_count ?? 0 : 0),
       0,
     ),
+    notLiveNow: rows.reduce(
+      (sum, row) =>
+        sum + (row.status_normalized === "not_live" ? row.status_count ?? 0 : 0),
+      0,
+    ),
     allTimeSessions: first?.all_time_sessions ?? 0,
     allTimeEstimatedRevenue: first?.estimated_all_time_revenue ?? 0,
     allTimeEstimatedKwh: first?.estimated_all_time_kwh ?? 0,
+    last24HoursEstimatedKwh,
     rawStatusBreakdown: rows.map((row) => ({
       statusText: row.status_text ?? "UNKNOWN",
       statusNormalized: row.status_normalized ?? "unknown",

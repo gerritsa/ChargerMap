@@ -4,15 +4,17 @@ import {
   buildChargerStatsBuckets,
   computeObservedOccupancyRate,
   computeTrackedSeconds,
-} from "@/lib/charger-stats";
+} from "@/lib/polling-stats";
+import {
+  DEFAULT_ASSUMED_BATTERY_KWH,
+  DEFAULT_ASSUMED_END_SOC,
+  DEFAULT_ASSUMED_START_SOC,
+  DEFAULT_ASSUMED_VEHICLE,
+  DEFAULT_ESTIMATION_METHOD,
+  estimateSession,
+  toDurationMinutes,
+} from "@/lib/swtch/session-estimation";
 import type { ChargerStatusNormalized } from "@/types/charger";
-
-const DEFAULT_ASSUMED_VEHICLE = "Tesla Model Y";
-const DEFAULT_ASSUMED_BATTERY_KWH = 75;
-const DEFAULT_ASSUMED_START_SOC = 20;
-const DEFAULT_ASSUMED_END_SOC = 80;
-const DEFAULT_ESTIMATION_METHOD = "output_kw_x_session_hours_capped_at_45kwh";
-const MAX_SESSION_KWH = 45;
 
 type CurrentStatusRow = {
   status_text: string;
@@ -27,6 +29,7 @@ type CurrentStatusRow = {
 type OpenSessionRow = {
   id: string;
   started_at: string;
+  start_status_text: string;
 };
 
 export type StatusTrackingCharger = {
@@ -92,184 +95,6 @@ function toRevenueNumber(value: number | null) {
 
 function toKwhNumber(value: number | null) {
   return value == null ? null : roundTo(value, 2);
-}
-
-function toDurationMinutes(startedAt: string, endedAt: string) {
-  const durationMs =
-    new Date(endedAt).getTime() - new Date(startedAt).getTime();
-
-  if (!Number.isFinite(durationMs) || durationMs <= 0) {
-    return 0;
-  }
-
-  return roundTo(durationMs / 60000, 2);
-}
-
-function estimateSessionKwh(outputKw: number | null, durationMinutes: number) {
-  if (outputKw == null) {
-    return null;
-  }
-
-  const sessionHours = durationMinutes / 60;
-  return toKwhNumber(Math.min(outputKw * sessionHours, MAX_SESSION_KWH));
-}
-
-function estimateChargingHours(
-  charger: StatusTrackingCharger,
-  sessionHours: number,
-  estimatedKwh: number | null,
-) {
-  if (charger.outputKw == null || charger.outputKw <= 0) {
-    return null;
-  }
-
-  if (estimatedKwh != null) {
-    return Math.min(sessionHours, estimatedKwh / charger.outputKw);
-  }
-
-  return Math.min(sessionHours, MAX_SESSION_KWH / charger.outputKw);
-}
-
-function estimateIdleHours(
-  charger: StatusTrackingCharger,
-  sessionHours: number,
-  estimatedKwh: number | null,
-  effectivePricingStructureType: string | null,
-) {
-  if (effectivePricingStructureType !== "idle_after_charging") {
-    return 0;
-  }
-
-  const chargingHours = estimateChargingHours(charger, sessionHours, estimatedKwh);
-
-  if (chargingHours == null) {
-    return 0;
-  }
-
-  const idleGraceHours = Math.max(0, charger.idleGraceHours ?? 0);
-  return Math.max(0, sessionHours - chargingHours - idleGraceHours);
-}
-
-function estimateSessionRevenue(
-  charger: StatusTrackingCharger,
-  durationMinutes: number,
-  estimatedKwh: number | null,
-) {
-  const sessionHours = durationMinutes / 60;
-  const guestFee = charger.guestFee ?? 0;
-  const flatFee = charger.flatFee ?? 0;
-  const fixedFees = guestFee + flatFee;
-  const effectivePricingStructureType =
-    charger.pricingStructureType ??
-    (charger.priceModelType === "tiered_time" ||
-    charger.priceModelType === "tiered_time_plus_guest_fee"
-      ? "tiered_time"
-      : charger.priceModelType === "base_plus_idle" ||
-          charger.priceModelType === "base_plus_idle_plus_guest_fee" ||
-          charger.priceModelType === "charging_plus_idle"
-        ? "idle_after_charging"
-        : charger.priceModelType === "time_of_day"
-          ? "time_of_day"
-          : null);
-  const effectivePricingBaseType =
-    charger.pricingBaseType ??
-    (charger.baseUnit === "kwh" || charger.energyRatePerKwh != null
-      ? "energy"
-      : charger.baseUnit === "hr" || charger.chargingRatePerHour != null
-        ? "hourly"
-        : charger.priceModelType === "free" ||
-            charger.priceModelType === "free_plus_guest_fee"
-          ? "free"
-          : charger.priceModelType === "energy_simple" ||
-              charger.priceModelType === "energy_plus_guest_fee"
-            ? "energy"
-            : charger.priceModelType === "hourly_simple" ||
-                charger.priceModelType === "hourly_plus_guest_fee" ||
-                charger.priceModelType === "charging_plus_idle"
-              ? "hourly"
-              : null);
-  const chargingHours = estimateChargingHours(
-    charger,
-    sessionHours,
-    estimatedKwh,
-  );
-  const idleHours = estimateIdleHours(
-    charger,
-    sessionHours,
-    estimatedKwh,
-    effectivePricingStructureType,
-  );
-  const idleRevenue =
-    effectivePricingStructureType === "idle_after_charging" &&
-    charger.idleUnit === "hr" &&
-    charger.idleRate != null
-      ? charger.idleRate * idleHours
-      : 0;
-
-  if (effectivePricingStructureType === "tiered_time") {
-    if (
-      charger.tier1RatePerHour == null ||
-      charger.tier1MaxHours == null ||
-      charger.tier2RatePerHour == null
-    ) {
-      return null;
-    }
-
-    const tier1Hours = Math.min(sessionHours, charger.tier1MaxHours);
-    const tier2Hours = Math.max(0, sessionHours - charger.tier1MaxHours);
-
-    return toRevenueNumber(
-      tier1Hours * charger.tier1RatePerHour +
-        tier2Hours * charger.tier2RatePerHour +
-        fixedFees,
-    );
-  }
-
-  switch (effectivePricingBaseType) {
-    case "free":
-      return toRevenueNumber(fixedFees + idleRevenue);
-
-    case "hourly":
-      if (
-        charger.baseUnit !== "hr" &&
-        charger.baseRate == null &&
-        charger.chargingRatePerHour == null
-      ) {
-        return null;
-      }
-
-      return toRevenueNumber(
-        ((charger.baseUnit === "hr" ? charger.baseRate : null) ??
-          charger.chargingRatePerHour ??
-          0) *
-          (effectivePricingStructureType === "idle_after_charging"
-            ? (chargingHours ?? sessionHours)
-            : sessionHours) +
-          fixedFees +
-          idleRevenue,
-      );
-
-    case "energy":
-      if (
-        ((charger.baseUnit === "kwh" ? charger.baseRate : null) ??
-          charger.energyRatePerKwh) == null ||
-        estimatedKwh == null
-      ) {
-        return null;
-      }
-
-      return toRevenueNumber(
-        (((charger.baseUnit === "kwh" ? charger.baseRate : null) ??
-          charger.energyRatePerKwh) ??
-          0) *
-          estimatedKwh +
-          fixedFees +
-          idleRevenue,
-      );
-
-    default:
-      return null;
-  }
 }
 
 async function getCurrentStatus(
@@ -488,7 +313,7 @@ async function getOpenSession(
 ) {
   const { data, error } = await supabase
     .from("charger_sessions")
-    .select("id, started_at")
+    .select("id, started_at, start_status_text")
     .eq("charger_id", chargerId)
     .is("ended_at", null)
     .order("started_at", { ascending: false })
@@ -502,6 +327,33 @@ async function getOpenSession(
   }
 
   return data;
+}
+
+async function getSessionStatusEvents(
+  supabase: SupabaseClient,
+  chargerId: string,
+  startedAt: string,
+  endedAt: string,
+) {
+  const { data, error } = await supabase
+    .from("charger_status_events")
+    .select("changed_at, to_status_text, to_status_normalized")
+    .eq("charger_id", chargerId)
+    .gt("changed_at", startedAt)
+    .lt("changed_at", endedAt)
+    .order("changed_at", { ascending: true });
+
+  if (error) {
+    throw new Error(
+      `Failed to load session status events for charger ${chargerId}: ${error.message}`,
+    );
+  }
+
+  return (data ?? []).map((row) => ({
+    changedAt: row.changed_at,
+    statusText: row.to_status_text,
+    statusNormalized: row.to_status_normalized as ChargerStatusNormalized,
+  }));
 }
 
 async function startSession(
@@ -549,13 +401,22 @@ async function closeOpenSession(
     return base;
   }
 
-  const durationMinutes = toDurationMinutes(openSession.started_at, endedAt);
-  const estimatedKwh = estimateSessionKwh(charger.outputKw, durationMinutes);
-  const estimatedRevenue = estimateSessionRevenue(
-    charger,
-    durationMinutes,
-    estimatedKwh,
+  const statusEvents = await getSessionStatusEvents(
+    supabase,
+    charger.chargerId,
+    openSession.started_at,
+    endedAt,
   );
+  const estimation = estimateSession({
+    charger,
+    startedAt: openSession.started_at,
+    endedAt,
+    startStatusText: openSession.start_status_text,
+    statusEvents,
+  });
+  const durationMinutes = toDurationMinutes(openSession.started_at, endedAt);
+  const estimatedKwh = estimation.estimatedKwh;
+  const estimatedRevenue = estimation.estimatedRevenue;
 
   const { error } = await supabase
     .from("charger_sessions")

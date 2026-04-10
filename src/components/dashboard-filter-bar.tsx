@@ -14,12 +14,14 @@ type DashboardFilterBarProps = {
   filters: DashboardFilters;
   options: DashboardFilterOptions;
   visibleFilters?: DashboardVisibleFilter[];
+  filterLabels?: Partial<Record<DashboardVisibleFilter, string>>;
 };
 
 export function DashboardFilterBar({
   filters,
   options,
   visibleFilters = ["status", "price", "output"],
+  filterLabels,
 }: DashboardFilterBarProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -27,20 +29,24 @@ export function DashboardFilterBar({
   const currentParams = useMemo(() => {
     const params = new URLSearchParams();
 
-    if (filters.status !== "all") {
+    if (visibleFilters.includes("status") && filters.status !== "all") {
       params.set("status", filters.status);
     }
 
-    if (filters.price !== "all") {
+    if (visibleFilters.includes("rawStatus") && filters.rawStatus !== "all") {
+      params.set("rawStatus", filters.rawStatus);
+    }
+
+    if (visibleFilters.includes("price") && filters.price !== "all") {
       params.set("price", filters.price);
     }
 
-    if (filters.output !== "all") {
+    if (visibleFilters.includes("output") && filters.output !== "all") {
       params.set("output", filters.output);
     }
 
     return params;
-  }, [filters]);
+  }, [filters, visibleFilters]);
 
   function updateFilter(name: keyof DashboardFilters, value: string) {
     const params = new URLSearchParams(currentParams.toString());
@@ -74,33 +80,57 @@ export function DashboardFilterBar({
           Show only:
         </p>
         <div className="flex min-w-0 flex-wrap items-end gap-2 xl:flex-nowrap">
-          {visibleFilters.includes("status") ? (
-            <FilterSelect
-              label="Status"
-              value={filters.status}
-              options={options.status}
-              onChange={(value) => updateFilter("status", value)}
-              disabled={isPending}
-            />
-          ) : null}
-          {visibleFilters.includes("price") ? (
-            <FilterSelect
-              label="Pricing"
-              value={filters.price}
-              options={options.price}
-              onChange={(value) => updateFilter("price", value)}
-              disabled={isPending}
-            />
-          ) : null}
-          {visibleFilters.includes("output") ? (
-            <FilterSelect
-              label="Output"
-              value={filters.output}
-              options={options.output}
-              onChange={(value) => updateFilter("output", value)}
-              disabled={isPending}
-            />
-          ) : null}
+          {visibleFilters.map((filterName) => {
+            if (filterName === "status") {
+              return (
+                <FilterSelect
+                  key={filterName}
+                  label={filterLabels?.status ?? "Status"}
+                  value={filters.status}
+                  options={options.status}
+                  onChange={(value) => updateFilter("status", value)}
+                  disabled={isPending}
+                />
+              );
+            }
+
+            if (filterName === "rawStatus") {
+              return (
+                <FilterSelect
+                  key={filterName}
+                  label={filterLabels?.rawStatus ?? "Status"}
+                  value={filters.rawStatus}
+                  options={options.rawStatus}
+                  onChange={(value) => updateFilter("rawStatus", value)}
+                  disabled={isPending}
+                />
+              );
+            }
+
+            if (filterName === "price") {
+              return (
+                <FilterSelect
+                  key={filterName}
+                  label={filterLabels?.price ?? "Pricing"}
+                  value={filters.price}
+                  options={options.price}
+                  onChange={(value) => updateFilter("price", value)}
+                  disabled={isPending}
+                />
+              );
+            }
+
+            return (
+              <FilterSelect
+                key={filterName}
+                label={filterLabels?.output ?? "Output"}
+                value={filters.output}
+                options={options.output}
+                onChange={(value) => updateFilter("output", value)}
+                disabled={isPending}
+              />
+            );
+          })}
 
           <button
             type="button"

@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, ServerCrash } from "lucide-react";
 import { formatDistanceToNowStrict } from "date-fns";
 
 import { DashboardFilterBar } from "@/components/dashboard-filter-bar";
+import { DashboardInfoButton } from "@/components/dashboard-info-button";
 import { StatusPill } from "@/components/status-pill";
 import { getStatusStaleLabel, isStatusStale } from "@/lib/status-freshness";
 import { cn, formatCompactNumber, formatMoney, formatNumber, formatPercent } from "@/lib/utils";
@@ -25,6 +26,9 @@ type DashboardListLayoutProps = {
   filters: DashboardFilters;
   options: DashboardFilterOptions;
   visibleFilters: DashboardVisibleFilter[];
+  filterLabels?: Partial<Record<DashboardVisibleFilter, string>>;
+  infoContent?: string;
+  infoAlign?: "left" | "right";
   pagination: DashboardPagination;
   children: ReactNode;
 };
@@ -42,18 +46,30 @@ export function DashboardListLayout({
   filters,
   options,
   visibleFilters,
+  filterLabels,
+  infoContent,
+  infoAlign = "left",
   pagination,
   children,
 }: DashboardListLayoutProps) {
   return (
     <div className="mx-auto flex w-[min(1240px,calc(100%-24px))] flex-col gap-5 py-5 md:w-[min(1240px,calc(100%-32px))]">
-      <section className="glass-card soft-grid rounded-[32px] px-5 py-4 md:px-6 md:py-4">
+      <section className="glass-card soft-grid relative z-20 overflow-visible rounded-[32px] px-5 py-4 md:px-6 md:py-4">
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
             <div className="min-w-0">
-              <h2 className="text-[1.2rem] font-semibold tracking-tight text-[var(--ink-900)] md:text-[1.55rem]">
-                {title}
-              </h2>
+              <div className="flex items-start gap-2">
+                <h2 className="text-[1.2rem] font-semibold tracking-tight text-[var(--ink-900)] md:text-[1.55rem]">
+                  {title}
+                </h2>
+                {infoContent ? (
+                  <DashboardInfoButton
+                    label={title}
+                    content={infoContent}
+                    align={infoAlign}
+                  />
+                ) : null}
+              </div>
               <p className="mt-1 max-w-3xl text-sm leading-5 text-[var(--ink-700)]">
                 {description}
               </p>
@@ -70,6 +86,7 @@ export function DashboardListLayout({
             filters={filters}
             options={options}
             visibleFilters={visibleFilters}
+            filterLabels={filterLabels}
           />
         </div>
       </section>
@@ -112,7 +129,7 @@ export function UnavailableListTable({
         ) : (
           <EmptyRow
             title="No unavailable chargers right now"
-            body="Every tracked Toronto charger is currently reporting as available or occupied."
+            body="No tracked Toronto chargers are currently reporting an unavailable status."
             colSpan={5}
           />
         )}
@@ -126,7 +143,7 @@ export function UnavailableListTable({
         ) : (
           <EmptyStateCard
             title="No unavailable chargers right now"
-            body="Every tracked Toronto charger is currently reporting as available or occupied."
+            body="No tracked Toronto chargers are currently reporting an unavailable status."
           />
         )}
       </MobileCards>

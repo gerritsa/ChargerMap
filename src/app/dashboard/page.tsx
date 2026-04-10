@@ -16,6 +16,7 @@ import { DashboardCollapsibleCard } from "@/components/dashboard-collapsible-car
 import { DashboardMetricCard } from "@/components/dashboard-metric-card";
 import { DashboardSectionNav } from "@/components/dashboard-section-nav";
 import { StatusPill } from "@/components/status-pill";
+import { DASHBOARD_EXPLANATIONS } from "@/lib/dashboard-explanations";
 import { getDashboardData } from "@/lib/dashboard";
 import { getStatusStaleLabel, isStatusStale } from "@/lib/status-freshness";
 import {
@@ -92,36 +93,36 @@ export default async function DashboardPage({
         <MetricGroup
           eyebrow="Current snapshot"
           title="Toronto overview."
-          description="Live status totals across the Toronto charger network."
+          description='Live status totals across the Toronto charger network. Non-live chargers are excluded from these numbers, for example chargers with a raw status like "Activating".'
           columnsClassName="md:grid-cols-4"
         >
           <DashboardMetricCard
-            eyebrow="Current"
-            label="Chargers in Toronto live scope"
+            eyebrow="Total"
+            label="Functioning chargers"
             value={formatCompactNumber(data.kpis.totalChargers)}
             icon={<MapPinned className="h-5 w-5" />}
             compact
           />
           <DashboardMetricCard
-            eyebrow="Current"
+            eyebrow="Occupied"
             label="Currently occupied"
             value={formatCompactNumber(data.kpis.currentlyOccupied)}
             icon={<BatteryCharging className="h-5 w-5" />}
             compact
           />
           <DashboardMetricCard
-            eyebrow="Current"
+            eyebrow="Out of service"
             label="Currently unavailable"
             value={formatCompactNumber(data.kpis.currentlyUnavailable)}
             icon={<Wrench className="h-5 w-5" />}
             compact
           />
           <DashboardMetricCard
-            eyebrow="Current"
-            label="Current occupancy"
+            eyebrow="Occupancy rate"
+            label="Current occupancy rate"
             value={formatPercent(currentOccupancyRate)}
             icon={<Gauge className="h-5 w-5" />}
-            info="Current occupancy is the share of chargers in Toronto live scope that are occupied right now."
+            info='Current occupancy rate is the share of chargers in the current live Toronto network that are occupied right now. Non-live chargers are excluded from these numbers, for example chargers with a raw status like "Activating".'
             infoAlign="right"
             compact
           />
@@ -146,7 +147,7 @@ export default async function DashboardPage({
             label="Estimated revenue"
             value={formatMoney(data.kpis.estimatedAllTimeRevenue)}
             icon={<CircleDollarSign className="h-5 w-5" />}
-            info="Estimated revenue comes from already-computed closed-session estimates. Open sessions do not inflate this KPI."
+            info="Estimated revenue comes from stored closed-session estimates. kWh chargers bill estimated energy sold, time-priced chargers still bill by occupied session time, and open sessions do not inflate this KPI."
             compact
           />
           <DashboardMetricCard
@@ -154,7 +155,7 @@ export default async function DashboardPage({
             label="Estimated energy sold"
             value={`${formatCompactNumber(data.kpis.estimatedAllTimeEnergySold)} kWh`}
             icon={<BatteryCharging className="h-5 w-5" />}
-            info="Estimated energy sold uses tracked session estimates already stored per charger. It is an all-time total across tracked Toronto chargers."
+            info="Estimated energy sold uses stored tracked-session estimates with energy-active occupied time, a 5 minute buffer, output-based power factors, and a 45 kWh cap. Suspended EV and suspended EVSE intervals keep the session alive but add 0 kWh."
             compact
           />
         </MetricGroup>
@@ -165,16 +166,9 @@ export default async function DashboardPage({
         eyebrow="Reliability"
         title="Unavailable chargers ranked by ongoing downtime."
         description="Only chargers currently normalized as unavailable appear here, sorted by the longest active downtime interval."
+        viewAllHref="/dashboard/reliability"
+        infoContent={DASHBOARD_EXPLANATIONS.reliability}
       >
-        <div className="mb-4 flex justify-end">
-          <Link
-            href="/dashboard/reliability"
-            className="inline-flex items-center gap-2 rounded-full border border-[var(--line-soft)] bg-white/72 px-4 py-2 text-sm font-semibold text-[var(--ink-700)] transition-colors hover:bg-white"
-          >
-            View all
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
         <DesktopTable>
           <TableHeaderRow>
             <HeaderCell>Charger</HeaderCell>
@@ -195,7 +189,7 @@ export default async function DashboardPage({
           ) : (
             <EmptyRow
               title="No unavailable chargers right now"
-              body="Every tracked Toronto charger is currently reporting as available or occupied."
+              body="No tracked Toronto chargers are currently reporting an unavailable status."
             />
           )}
         </DesktopTable>
@@ -213,7 +207,7 @@ export default async function DashboardPage({
           ) : (
             <EmptyStateCard
               title="No unavailable chargers right now"
-              body="Every tracked Toronto charger is currently reporting as available or occupied."
+              body="No tracked Toronto chargers are currently reporting an unavailable status."
             />
           )}
         </MobileCards>
@@ -223,17 +217,10 @@ export default async function DashboardPage({
         id="occupancy"
         eyebrow="Occupancy"
         title="Chargers ranked by observed tracked occupancy."
-        description="Occupancy is based on tracked occupied intervals since first seen, including any currently open session up to the last successful check."
+        description="Occupancy is based on tracked occupied intervals since first seen, including any currently open session up to the last successful check. Chargers currently normalized as not live are excluded from these rankings."
+        viewAllHref="/dashboard/occupancy"
+        infoContent={DASHBOARD_EXPLANATIONS.occupancy}
       >
-        <div className="mb-4 flex justify-end">
-          <Link
-            href="/dashboard/occupancy"
-            className="inline-flex items-center gap-2 rounded-full border border-[var(--line-soft)] bg-white/72 px-4 py-2 text-sm font-semibold text-[var(--ink-700)] transition-colors hover:bg-white"
-          >
-            View all
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
         <DesktopTable>
           <TableHeaderRow>
             <HeaderCell>Charger</HeaderCell>
@@ -284,16 +271,9 @@ export default async function DashboardPage({
         eyebrow="Expected revenue"
         title="Expected revenue leaders across the Toronto charger network."
         description="These rankings use all-time estimated revenue, with supporting session, energy, and occupancy context."
+        viewAllHref="/dashboard/expected-revenue"
+        infoContent={DASHBOARD_EXPLANATIONS.revenue}
       >
-        <div className="mb-4 flex justify-end">
-          <Link
-            href="/dashboard/expected-revenue"
-            className="inline-flex items-center gap-2 rounded-full border border-[var(--line-soft)] bg-white/72 px-4 py-2 text-sm font-semibold text-[var(--ink-700)] transition-colors hover:bg-white"
-          >
-            View all
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
         <DesktopTable>
           <TableHeaderRow>
             <HeaderCell>Charger</HeaderCell>
@@ -377,12 +357,16 @@ function DashboardSection({
   eyebrow,
   title,
   description,
+  viewAllHref,
+  infoContent,
   children,
 }: {
   id: string;
   eyebrow: string;
   title: string;
   description: string;
+  viewAllHref: string;
+  infoContent: string;
   children: ReactNode;
 }) {
   return (
@@ -391,6 +375,16 @@ function DashboardSection({
       eyebrow={eyebrow}
       title={title}
       description={description}
+      infoContent={infoContent}
+      headerAction={
+        <Link
+          href={viewAllHref}
+          className="inline-flex items-center gap-2 rounded-full border border-[var(--line-soft)] bg-white/72 px-4 py-2 text-sm font-semibold text-[var(--ink-700)] transition-colors hover:bg-white"
+        >
+          View all
+          <ArrowRight className="h-4 w-4" />
+        </Link>
+      }
       className="scroll-mt-40 rounded-[32px] px-5 py-5 md:px-6"
       bodyClassName="mt-5"
     >

@@ -2,6 +2,7 @@ import {
   DashboardListLayout,
   UnavailableListTable,
 } from "@/components/dashboard-list-components";
+import { DASHBOARD_EXPLANATIONS } from "@/lib/dashboard-explanations";
 import { getDashboardUnavailableListData } from "@/lib/dashboard";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +25,8 @@ export default async function ReliabilityPage({
       filters={data.filters}
       options={data.options}
       visibleFilters={data.visibleFilters}
+      filterLabels={{ output: "Power" }}
+      infoContent={DASHBOARD_EXPLANATIONS.reliability}
       pagination={data.pagination}
     >
       <UnavailableListTable rows={data.rows} />

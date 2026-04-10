@@ -21,6 +21,7 @@ import { DashboardMetricCard } from "@/components/dashboard-metric-card";
 import { StatusPill } from "@/components/status-pill";
 import { getDashboardChargerDetail } from "@/lib/dashboard";
 import { getStatusStaleLabel, isStatusStale } from "@/lib/status-freshness";
+import { getTrackingStartedAtLabel } from "@/lib/tracking-start";
 import {
   formatCompactNumber,
   formatMoney,
@@ -38,7 +39,11 @@ export default async function ChargerDetailPage({
   params,
   searchParams,
 }: ChargerDetailPageProps) {
-  const [{ id }, rawSearchParams] = await Promise.all([params, searchParams]);
+  const [{ id }, rawSearchParams, trackingStartedAtLabel] = await Promise.all([
+    params,
+    searchParams,
+    getTrackingStartedAtLabel(),
+  ]);
   const detail = await getDashboardChargerDetail(id);
 
   if (!detail) {
@@ -55,7 +60,7 @@ export default async function ChargerDetailPage({
 
   return (
     <main className="min-h-screen overflow-x-hidden pb-10 pt-0">
-      <AppHeader />
+      <AppHeader trackingStartedAtLabel={trackingStartedAtLabel} />
 
       <div className="mx-auto flex w-[min(1240px,calc(100%-24px))] flex-col gap-5 py-5 md:w-[min(1240px,calc(100%-32px))]">
         <section className="glass-card soft-grid rounded-[36px] px-6 py-6 md:px-8 md:py-7">
@@ -175,7 +180,7 @@ export default async function ChargerDetailPage({
                 value={formatMoney(charger.estimatedAllTimeRevenue)}
                 helper="Stored closed-session estimate."
                 icon={<CircleDollarSign className="h-5 w-5" />}
-                info="Estimated revenue is derived from stored all-time closed-session calculations."
+                info="Estimated revenue is derived from stored closed-session estimates. kWh chargers bill estimated energy sold, while time-priced chargers still bill by occupied session time."
                 compact
               />
               <DashboardMetricCard
@@ -184,7 +189,7 @@ export default async function ChargerDetailPage({
                 value={`${formatCompactNumber(charger.estimatedAllTimeEnergySold)} kWh`}
                 helper="Stored all-time tracked energy estimate."
                 icon={<BatteryCharging className="h-5 w-5" />}
-                info="Estimated energy sold is the charger's stored all-time energy total from tracked sessions."
+                info="Estimated energy sold is the charger's stored all-time tracked total using energy-active occupied time, a 5 minute buffer, output-based power factors, and a 45 kWh cap. Suspended EV and suspended EVSE intervals keep the session alive but add 0 kWh."
                 compact
               />
               <DashboardMetricCard
@@ -317,7 +322,7 @@ export default async function ChargerDetailPage({
                             {session.isOpen
                               ? isStale
                                 ? "Not ended at last successful check"
-                                : "Open now"
+                                : "Still ongoing"
                               : formatDateTime(session.endedAt!)}
                           </BodyCell>
                           <BodyCell>
@@ -366,7 +371,7 @@ export default async function ChargerDetailPage({
                             session.isOpen
                               ? isStale
                                 ? "Not ended at last successful check"
-                                : "Open now"
+                                : "Still ongoing"
                               : formatDateTime(session.endedAt!)
                           }
                         />
@@ -509,12 +514,17 @@ function getCurrentStateValue(charger: {
     return "Healthy";
   }
 
+  if (charger.statusNormalized === "not_live") {
+    return "Not live";
+  }
+
   return charger.statusText;
 }
 
 function getCurrentStateHelper(charger: {
   unavailableSince: string | null;
   currentSessionStartedAt: string | null;
+  statusNormalized: string;
 }, isStale: boolean) {
   if (isStale) {
     if (charger.unavailableSince) {
@@ -523,6 +533,10 @@ function getCurrentStateHelper(charger: {
 
     if (charger.currentSessionStartedAt) {
       return "Occupied at the last successful check.";
+    }
+
+    if (charger.statusNormalized === "not_live") {
+      return "Not live at the last successful check.";
     }
 
     return "No open occupied interval at the last successful check.";
@@ -537,6 +551,10 @@ function getCurrentStateHelper(charger: {
       charger.currentSessionStartedAt,
       { addSuffix: true },
     )}.`;
+  }
+
+  if (charger.statusNormalized === "not_live") {
+    return "Currently outside the live charging network.";
   }
 
   return "No currently open occupied interval.";

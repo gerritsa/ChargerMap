@@ -7,10 +7,12 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "node --import tsx --test",
     "scrape:listing": "tsx scripts/scrape-listing.ts",
     "scrape:range": "tsx scripts/scrape-range.ts",
     "poll:status": "tsx scripts/poll-status.ts",
-    "scope:toronto": "tsx scripts/tag-toronto-scope.ts"
+    "scope:toronto": "tsx scripts/tag-toronto-scope.ts",
+    "backfill:session-estimates": "tsx scripts/backfill-session-estimates.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.102.1",

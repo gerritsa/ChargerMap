@@ -2,6 +2,7 @@ import {
   DashboardListLayout,
   ProfitabilityListTable,
 } from "@/components/dashboard-list-components";
+import { DASHBOARD_EXPLANATIONS } from "@/lib/dashboard-explanations";
 import { getDashboardProfitabilityListData } from "@/lib/dashboard";
 
 export const dynamic = "force-dynamic";
@@ -19,11 +20,12 @@ export default async function ExpectedRevenuePage({
   return (
     <DashboardListLayout
       title="Expected revenue leaders across the Toronto charger network"
-      description="This view ranks tracked Toronto chargers by estimated all-time revenue, with session, energy, and occupancy context."
+      description="This view ranks tracked Toronto chargers by estimated all-time revenue, with session, energy, and occupancy context. Chargers currently normalized as not live are excluded."
       pathname="/dashboard/expected-revenue"
       filters={data.filters}
       options={data.options}
       visibleFilters={data.visibleFilters}
+      infoContent={DASHBOARD_EXPLANATIONS.revenue}
       pagination={data.pagination}
     >
       <ProfitabilityListTable rows={data.rows} />

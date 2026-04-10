@@ -124,6 +124,7 @@ const STATUS_OPTIONS: DashboardFilterOption[] = [
   { value: "available", label: "Available" },
   { value: "occupied", label: "Occupied" },
   { value: "unavailable", label: "Unavailable" },
+  { value: "not_live", label: "Not live" },
   { value: "unknown", label: "Unknown" },
 ];
 
@@ -138,6 +139,7 @@ const PRICE_OPTIONS: DashboardFilterOption[] = [
 
 const DEFAULT_FILTERS: DashboardFilters = {
   status: "all",
+  rawStatus: "all",
   region: "all",
   price: "all",
   output: "all",
@@ -501,7 +503,9 @@ async function getDashboardSnapshot(filters: DashboardFilters, now: Date) {
   const supabase = createServerSupabaseClient();
 
   if (!supabase) {
-    const rows = applyDashboardFilters(buildMockDashboardRows(now), filters);
+    const rows = applyDashboardFilters(buildMockDashboardRows(now), filters).filter(
+      (row) => filters.status !== "all" || row.statusNormalized !== "not_live",
+    );
     return {
       kpis: rows.reduce<DashboardData["kpis"]>(
         (acc, row) => {
@@ -581,12 +585,22 @@ async function fetchDashboardTopRows(
     limit?: number;
     offset?: number;
     statusFilter?: ChargerStatusNormalized;
+    excludeNotLive?: boolean;
   },
 ) {
   const supabase = createServerSupabaseClient();
+  const shouldExcludeNotLive =
+    options.excludeNotLive &&
+    filters.status === "all" &&
+    filters.rawStatus === "all" &&
+    !options.statusFilter;
 
   if (!supabase) {
     let rows = applyDashboardFilters(buildMockDashboardRows(now), filters);
+
+    if (shouldExcludeNotLive) {
+      rows = rows.filter((row) => row.statusNormalized !== "not_live");
+    }
 
     if (options.statusFilter) {
       rows = rows.filter((row) => row.statusNormalized === options.statusFilter);
@@ -636,12 +650,20 @@ async function fetchDashboardTopRows(
     query = query.eq("region", filters.region);
   }
 
+  if (filters.rawStatus !== "all") {
+    query = query.eq("status_text", filters.rawStatus);
+  }
+
   if (filters.price !== "all") {
     query = query.eq("price_bucket", filters.price);
   }
 
   if (filters.output !== "all") {
     query = query.eq("output_bucket", filters.output);
+  }
+
+  if (shouldExcludeNotLive) {
+    query = query.neq("status_normalized", "not_live");
   }
 
   if (options.statusFilter) {
@@ -672,12 +694,22 @@ async function countDashboardRows(
   now: Date,
   options: {
     statusFilter?: ChargerStatusNormalized;
+    excludeNotLive?: boolean;
   } = {},
 ) {
   const supabase = createServerSupabaseClient();
+  const shouldExcludeNotLive =
+    options.excludeNotLive &&
+    filters.status === "all" &&
+    filters.rawStatus === "all" &&
+    !options.statusFilter;
 
   if (!supabase) {
     let rows = applyDashboardFilters(buildMockDashboardRows(now), filters);
+
+    if (shouldExcludeNotLive) {
+      rows = rows.filter((row) => row.statusNormalized !== "not_live");
+    }
 
     if (options.statusFilter) {
       rows = rows.filter((row) => row.statusNormalized === options.statusFilter);
@@ -701,12 +733,20 @@ async function countDashboardRows(
     query = query.eq("region", filters.region);
   }
 
+  if (filters.rawStatus !== "all") {
+    query = query.eq("status_text", filters.rawStatus);
+  }
+
   if (filters.price !== "all") {
     query = query.eq("price_bucket", filters.price);
   }
 
   if (filters.output !== "all") {
     query = query.eq("output_bucket", filters.output);
+  }
+
+  if (shouldExcludeNotLive) {
+    query = query.neq("status_normalized", "not_live");
   }
 
   if (options.statusFilter) {
@@ -793,6 +833,105 @@ async function fetchDashboardFilterOptions(
   };
 }
 
+async function fetchDashboardRawStatusOptions(
+  filters: DashboardFilters,
+  now: Date,
+  options: {
+    statusFilter?: ChargerStatusNormalized;
+    excludeNotLive?: boolean;
+  } = {},
+) {
+  const supabase = createServerSupabaseClient();
+  const shouldExcludeNotLive =
+    options.excludeNotLive &&
+    filters.status === "all" &&
+    filters.rawStatus === "all" &&
+    !options.statusFilter;
+
+  if (!supabase) {
+    let rows = applyDashboardFilters(buildMockDashboardRows(now), filters, ["rawStatus"]);
+
+    if (shouldExcludeNotLive) {
+      rows = rows.filter((row) => row.statusNormalized !== "not_live");
+    }
+
+    if (options.statusFilter) {
+      rows = rows.filter((row) => row.statusNormalized === options.statusFilter);
+    }
+
+    const statusCounts = rows.reduce<Map<string, number>>((counts, row) => {
+      counts.set(row.statusText, (counts.get(row.statusText) ?? 0) + 1);
+      return counts;
+    }, new Map());
+
+    return Array.from(statusCounts.entries())
+      .sort((left, right) => {
+        if (right[1] !== left[1]) {
+          return right[1] - left[1];
+        }
+
+        return left[0].localeCompare(right[0]);
+      })
+      .map(([value]) => value);
+  }
+
+  let query = supabase
+    .from("charger_stats")
+    .select("status_text, chargers!inner(id)")
+    .eq("chargers.tracking_scope", "toronto")
+    .eq("chargers.is_active", true)
+    .eq("chargers.is_decommissioned", false);
+
+  if (filters.status !== "all") {
+    query = query.eq("status_normalized", filters.status);
+  }
+
+  if (filters.region !== "all") {
+    query = query.eq("region", filters.region);
+  }
+
+  if (filters.price !== "all") {
+    query = query.eq("price_bucket", filters.price);
+  }
+
+  if (filters.output !== "all") {
+    query = query.eq("output_bucket", filters.output);
+  }
+
+  if (shouldExcludeNotLive) {
+    query = query.neq("status_normalized", "not_live");
+  }
+
+  if (options.statusFilter) {
+    query = query.eq("status_normalized", options.statusFilter);
+  }
+
+  const { data, error } = await query;
+
+  if (error || !data) {
+    return [] as string[];
+  }
+
+  const statusCounts = (((data as unknown) as Array<{ status_text: string | null }>) ?? []).reduce(
+    (counts, row) => {
+      const statusText = row.status_text?.trim() || "UNKNOWN";
+      counts.set(statusText, (counts.get(statusText) ?? 0) + 1);
+      return counts;
+    },
+    new Map<string, number>(),
+  );
+
+  return Array.from(statusCounts.entries())
+    .sort((left, right) => {
+      if (right[1] !== left[1]) {
+        return right[1] - left[1];
+      }
+
+      return left[0].localeCompare(right[0]);
+    })
+    .map(([value]) => value);
+}
+
 function applyDashboardFilters(
   rows: DashboardBaseRow[],
   filters: DashboardFilters,
@@ -807,6 +946,12 @@ function applyDashboardFilters(
 
     if (!excludedFilters.includes("region") && filters.region !== "all") {
       if (row.region !== filters.region) {
+        return false;
+      }
+    }
+
+    if (!excludedFilters.includes("rawStatus") && filters.rawStatus !== "all") {
+      if (row.statusText !== filters.rawStatus) {
         return false;
       }
     }
@@ -850,7 +995,9 @@ function getSingleParam(value: SearchParamValue) {
 function isValidStatusFilter(value: string | undefined): value is DashboardStatusFilter {
   return Boolean(
     value &&
-      ["all", "available", "occupied", "unavailable", "unknown"].includes(value),
+      ["all", "available", "occupied", "unavailable", "not_live", "unknown"].includes(
+        value,
+      ),
   );
 }
 
@@ -866,12 +1013,14 @@ function normalizeDashboardFilters(
   options: { regions: string[]; outputs: string[] },
 ): DashboardFilters {
   const status = getSingleParam(rawSearchParams.status);
+  const rawStatus = getSingleParam(rawSearchParams.rawStatus);
   const price = getSingleParam(rawSearchParams.price);
   const region = getSingleParam(rawSearchParams.region);
   const output = getSingleParam(rawSearchParams.output);
 
   return {
     status: isValidStatusFilter(status) ? status : DEFAULT_FILTERS.status,
+    rawStatus: rawStatus?.trim() ? rawStatus.trim() : DEFAULT_FILTERS.rawStatus,
     price: isValidPriceBucket(price) ? price : DEFAULT_FILTERS.price,
     region: region && options.regions.includes(region) ? region : DEFAULT_FILTERS.region,
     output:
@@ -893,16 +1042,30 @@ function normalizeDashboardPage(rawSearchParams: DashboardQueryParams = {}) {
 
 function buildDashboardFilterOptions(
   filters: DashboardFilters,
-  outputFilterOptions: { outputs: string[] },
+  filterOptions: { outputs: string[]; rawStatuses: string[] },
 ) {
   return {
     status: STATUS_OPTIONS,
+    rawStatus: ensureSelectedOption(
+      [
+        { value: "all", label: "All statuses" },
+        ...filterOptions.rawStatuses.map((value) => ({
+          value,
+          label: value,
+        })),
+      ],
+      filters.rawStatus,
+      (value) => ({
+        value,
+        label: value,
+      }),
+    ),
     region: [{ value: "all", label: "All regions" }],
     price: PRICE_OPTIONS,
     output: ensureSelectedOption(
       [
         { value: "all", label: "All outputs" },
-        ...outputFilterOptions.outputs.map((value) => ({
+        ...filterOptions.outputs.map((value) => ({
           value,
           label: value === "unknown" ? "Unknown output" : `${value} kW`,
         })),
@@ -931,10 +1094,12 @@ export async function getDashboardData(now = new Date()): Promise<DashboardData>
       fetchDashboardTopRows(filters, now, {
         orderBy: "observed_occupancy_rate",
         limit: 10,
+        excludeNotLive: true,
       }),
       fetchDashboardTopRows(filters, now, {
         orderBy: "estimated_all_time_revenue",
         limit: 10,
+        excludeNotLive: true,
       }),
     ]);
 
@@ -1034,16 +1199,17 @@ async function getDashboardListData(
   const requestedPage = normalizeDashboardPage(rawSearchParams);
   const visibleFilters: DashboardVisibleFilter[] =
     kind === "occupancy"
-      ? ["status", "price", "output"]
-      : ["price", "output"];
+      ? ["rawStatus", "price", "output"]
+      : kind === "unavailable"
+        ? ["rawStatus", "output", "price"]
+        : ["price", "output"];
   const filters: DashboardFilters = {
     ...requestedFilters,
-    status:
-      kind === "unavailable"
-        ? "unavailable"
-        : kind === "profitability"
-          ? "all"
-          : requestedFilters.status,
+    status: "all",
+    rawStatus:
+      kind === "occupancy" || kind === "unavailable"
+        ? requestedFilters.rawStatus
+        : "all",
   };
   const statusFilter = kind === "unavailable" ? "unavailable" : undefined;
   const orderBy =
@@ -1054,9 +1220,18 @@ async function getDashboardListData(
         : "estimated_all_time_revenue";
   const ascending = kind === "unavailable";
 
-  const [totalItems, outputFilterOptions] = await Promise.all([
-    countDashboardRows(filters, now, { statusFilter }),
+  const [totalItems, outputFilterOptions, rawStatusOptions] = await Promise.all([
+    countDashboardRows(filters, now, {
+      statusFilter,
+      excludeNotLive: kind !== "unavailable",
+    }),
     fetchDashboardFilterOptions(filters, ["output"]),
+    kind === "occupancy" || kind === "unavailable"
+      ? fetchDashboardRawStatusOptions(filters, now, {
+          statusFilter,
+          excludeNotLive: kind === "occupancy",
+        })
+      : Promise.resolve([] as string[]),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(totalItems / DASHBOARD_LIST_PAGE_SIZE));
@@ -1068,11 +1243,15 @@ async function getDashboardListData(
     statusFilter,
     limit: DASHBOARD_LIST_PAGE_SIZE,
     offset,
+    excludeNotLive: kind !== "unavailable",
   });
 
   return {
     filters,
-    options: buildDashboardFilterOptions(filters, outputFilterOptions),
+    options: buildDashboardFilterOptions(filters, {
+      ...outputFilterOptions,
+      rawStatuses: rawStatusOptions,
+    }),
     visibleFilters,
     pagination: {
       page,
@@ -1359,6 +1538,10 @@ export function buildDashboardListHref(
 
   if (visibleFilters.includes("status") && filters.status !== "all") {
     params.set("status", filters.status);
+  }
+
+  if (visibleFilters.includes("rawStatus") && filters.rawStatus !== "all") {
+    params.set("rawStatus", filters.rawStatus);
   }
 
   if (visibleFilters.includes("price") && filters.price !== "all") {

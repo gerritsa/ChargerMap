@@ -2,6 +2,7 @@ export type ChargerStatusNormalized =
   | "available"
   | "occupied"
   | "unavailable"
+  | "not_live"
   | "unknown";
 
 export type MapBounds = {
@@ -50,9 +51,11 @@ export type ChargerMapMetrics = {
   currentlyOccupied: number;
   availableNow: number;
   unavailableNow: number;
+  notLiveNow: number;
   allTimeSessions: number;
   allTimeEstimatedRevenue: number;
   allTimeEstimatedKwh: number;
+  last24HoursEstimatedKwh: number;
   rawStatusBreakdown: Array<{
     statusText: string;
     statusNormalized: ChargerStatusNormalized;

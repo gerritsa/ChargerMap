@@ -4,8 +4,8 @@ import {
   DEFAULT_MAP_BOUNDS,
   getMapChargerGroup,
   getMapDataForBounds,
-  getMapNetworkMetrics,
 } from "@/lib/chargers";
+import { getTrackingStartedAtLabel } from "@/lib/tracking-start";
 
 type HomePageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -14,10 +14,10 @@ type HomePageProps = {
 export default async function Home({ searchParams }: HomePageProps) {
   const params = await searchParams;
   const requestedCharger = Array.isArray(params.charger) ? params.charger[0] : params.charger;
-  const [{ summaries }, networkMetrics, initialSelectedGroup] = await Promise.all([
+  const [mapData, initialSelectedGroup, trackingStartedAtLabel] = await Promise.all([
     getMapDataForBounds(DEFAULT_MAP_BOUNDS),
-    getMapNetworkMetrics(),
     requestedCharger ? getMapChargerGroup(requestedCharger) : Promise.resolve(null),
+    getTrackingStartedAtLabel(),
   ]);
   const initialSelectedId =
     requestedCharger &&
@@ -27,12 +27,13 @@ export default async function Home({ searchParams }: HomePageProps) {
 
   return (
     <main className="min-h-screen overflow-hidden pb-0 pt-0">
-      <AppHeader />
+      <AppHeader trackingStartedAtLabel={trackingStartedAtLabel} />
       <MapExperience
-        initialChargers={summaries}
-        initialMetrics={networkMetrics}
+        initialChargers={mapData.summaries}
+        initialMetrics={mapData.metrics}
         initialSelectedGroup={initialSelectedGroup ?? []}
         initialSelectedId={initialSelectedId}
+        trackingStartedAtLabel={trackingStartedAtLabel}
       />
     </main>
   );

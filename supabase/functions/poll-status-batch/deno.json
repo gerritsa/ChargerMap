@@ -1,0 +1,19 @@
+{
+  "imports": {
+    "@/data/toronto-region.json": "../../../src/data/toronto-region.json",
+    "@/lib/polling-stats": "../../../src/lib/polling-stats.ts",
+    "@/lib/polling": "../../../src/lib/polling.ts",
+    "@/lib/status-tracking": "../../../src/lib/status-tracking.ts",
+    "@/lib/swtch/fetch": "../../../src/lib/swtch/fetch.ts",
+    "@/lib/swtch/normalize-status": "../../../src/lib/swtch/normalize-status.ts",
+    "@/lib/swtch/parser": "../../../src/lib/swtch/parser.ts",
+    "@/lib/swtch/pricing": "../../../src/lib/swtch/pricing.ts",
+    "@/lib/swtch/status-store": "../../../src/lib/swtch/status-store.ts",
+    "@/types/charger": "../../../src/types/charger.ts",
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.102.1",
+    "cheerio": "npm:cheerio@1.2.0",
+    "date-fns": "npm:date-fns@4.1.0",
+    "geojson": "npm:@types/geojson@7946.0.16",
+    "zod": "npm:zod@4.3.6"
+  }
+}

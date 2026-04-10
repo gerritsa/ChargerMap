@@ -215,15 +215,30 @@ Current derived values include:
 
 Session revenue estimation uses the normalized pricing fields:
 
-- for `hourly`, revenue is `base_rate * billable_charging_hours + idle_revenue + guest_fee + flat_fee`
+- for `hourly`, revenue is `base_rate * occupied_session_hours + idle_revenue + guest_fee + flat_fee`
 - for `energy`, revenue is `base_rate * estimated_kwh + idle_revenue + guest_fee + flat_fee`
 - for `free`, revenue is `idle_revenue + guest_fee + flat_fee`
 - for `tiered_time`, revenue is `tier1 + tier2 + guest_fee + flat_fee`
 
-For `idle_after_charging`, the estimator infers charging completion from the
-charger power and the 45 kWh cap:
+Estimated kWh is no longer a straight `output_kw * session_hours` line. The
+estimator now:
 
-- `estimated_charge_hours = min(session_hours, 45 / output_kw)`
+- counts only energy-active occupied intervals
+- treats `suspendedEV` and `suspendedEVSE` intervals as `0 kWh`
+- subtracts a `5 minute` session buffer before estimating delivered energy
+- applies an output-based power factor before capping at `45 kWh`
+
+Current power factors are:
+
+- up to `11 kW`: `0.9`
+- above `11 kW` and up to `25 kW`: `0.8`
+- above `25 kW`: `0.7`
+
+For `idle_after_charging`, the estimator infers charging completion from the
+effective charger power and the 45 kWh cap:
+
+- `effective_output_kw = output_kw * power_factor`
+- `estimated_charge_hours = min(energy_active_hours_after_buffer, 45 / effective_output_kw)`
 - `idle_start_hours = estimated_charge_hours + idle_grace_hours`
 - `idle_hours = max(0, session_hours - idle_start_hours)`
 

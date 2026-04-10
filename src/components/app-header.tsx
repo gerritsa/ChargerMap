@@ -21,7 +21,15 @@ const analyticsNavItems = [
   { href: "/dashboard/expected-revenue", label: "Revenue", value: "revenue" as const },
 ];
 
-export function AppHeader() {
+type AppHeaderProps = {
+  trackingStartedAtLabel?: string | null;
+};
+
+export function AppHeader(props: AppHeaderProps = {}) {
+  return <AppHeaderContent {...props} />;
+}
+
+export function AppHeaderContent({ trackingStartedAtLabel = null }: AppHeaderProps = {}) {
   const pathname = usePathname();
   const primaryCurrent = getPrimaryCurrent(pathname);
   const dashboardSection = getDashboardSection(pathname);
@@ -49,6 +57,11 @@ export function AppHeader() {
               <h1 className="mt-1 text-[0.95rem] font-semibold text-[var(--ink-900)] md:text-[1.45rem]">
                 City of Toronto charging analytics POC
               </h1>
+              {trackingStartedAtLabel ? (
+                <p className="mt-1 text-xs text-[var(--ink-600)] md:text-sm">
+                  Tracking since {trackingStartedAtLabel}
+                </p>
+              ) : null}
             </div>
           </div>
 

@@ -12,6 +12,7 @@ export type DashboardPriceBucket =
 
 export type DashboardFilters = {
   status: DashboardStatusFilter;
+  rawStatus: string;
   region: string;
   price: DashboardPriceBucket;
   output: string;
@@ -24,12 +25,13 @@ export type DashboardFilterOption = {
 
 export type DashboardFilterOptions = {
   status: DashboardFilterOption[];
+  rawStatus: DashboardFilterOption[];
   region: DashboardFilterOption[];
   price: DashboardFilterOption[];
   output: DashboardFilterOption[];
 };
 
-export type DashboardVisibleFilter = "status" | "price" | "output";
+export type DashboardVisibleFilter = "status" | "rawStatus" | "price" | "output";
 
 export type DashboardPagination = {
   page: number;

@@ -33,6 +33,7 @@ export function DashboardMetricCard({
 
   return (
     <article
+      data-info-open={isInfoOpen ? "true" : undefined}
       className={cn(
         compact
           ? "glass-card relative min-w-0 rounded-[22px] bg-[rgba(255,250,243,0.82)] p-3.5"

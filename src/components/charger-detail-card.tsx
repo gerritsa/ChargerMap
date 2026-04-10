@@ -4,7 +4,6 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   ChevronLeft,
-  ChevronRight,
   ExternalLink,
   MapPinned,
   TimerReset,
@@ -20,7 +19,7 @@ import type { Charger } from "@/types/charger";
 type ChargerDetailCardProps = {
   charger: Charger;
   chargersAtLocation?: Charger[];
-  onSelectCharger?: (chargerId: string) => void;
+  onBackToLocationList?: () => void;
   className?: string;
   onClose?: () => void;
 };
@@ -28,29 +27,14 @@ type ChargerDetailCardProps = {
 export function ChargerDetailCard({
   charger,
   chargersAtLocation = [],
-  onSelectCharger,
+  onBackToLocationList,
   className,
   onClose,
 }: ChargerDetailCardProps) {
-  const locationChargers = chargersAtLocation.length ? chargersAtLocation : [charger];
   const hasDistinctTitle =
     charger.title.trim().toLowerCase() !== charger.chargerIdentifier.trim().toLowerCase();
-  const activeIndex = Math.max(
-    0,
-    locationChargers.findIndex((candidate) => candidate.id === charger.id),
-  );
-  const canStep = locationChargers.length > 1;
+  const locationCount = chargersAtLocation.length;
   const isStale = isStatusStale(charger.lastCheckedAt);
-
-  function stepSelection(direction: -1 | 1) {
-    if (!canStep) {
-      return;
-    }
-
-    const nextIndex =
-      (activeIndex + direction + locationChargers.length) % locationChargers.length;
-    onSelectCharger?.(locationChargers[nextIndex].id);
-  }
 
   return (
     <aside
@@ -59,32 +43,23 @@ export function ChargerDetailCard({
         className,
       )}
     >
-      {canStep ? (
-        <div className="mb-2.5 flex items-center justify-between gap-2 border-b border-[var(--line-soft)] pb-1.5">
-          <button
-            type="button"
-            onClick={() => stepSelection(-1)}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[var(--ink-700)] transition-colors hover:bg-[var(--surface-2)]"
-            aria-label="Show previous charger at this location"
-          >
-            <ChevronLeft className="h-3.5 w-3.5" />
-          </button>
-          <div className="min-w-0 text-center">
-            <p className="text-[9px] font-medium uppercase tracking-[0.16em] text-[var(--ink-500)]">
-              Same location
-            </p>
-            <p className="text-[12px] font-medium text-[var(--ink-900)]">
-              {activeIndex + 1} / {locationChargers.length}
-            </p>
+      {locationCount > 1 ? (
+        <div className="mb-2.5 flex items-center justify-between gap-2 border-b border-[var(--line-soft)] pb-2">
+          {onBackToLocationList ? (
+            <button
+              type="button"
+              onClick={onBackToLocationList}
+              className="inline-flex items-center gap-1 rounded-full border border-[var(--line-soft)] bg-white/72 px-2.5 py-1 text-[11px] font-medium text-[var(--ink-800)] transition-colors hover:bg-white"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+              Back to list
+            </button>
+          ) : (
+            <div />
+          )}
+          <div className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--ink-500)]">
+            {locationCount} chargers here
           </div>
-          <button
-            type="button"
-            onClick={() => stepSelection(1)}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[var(--ink-700)] transition-colors hover:bg-[var(--surface-2)]"
-            aria-label="Show next charger at this location"
-          >
-            <ChevronRight className="h-3.5 w-3.5" />
-          </button>
         </div>
       ) : null}
 
@@ -198,13 +173,11 @@ export function ChargerDetailCard({
               value={`${Math.round(charger.estimatedAllTimeKwh).toLocaleString()} kWh`}
             />
             <DataRow
-              label="Unavailable"
+              label="Downtime"
               value={
                 charger.unavailableSince
-                  ? formatDistanceToNowStrict(charger.unavailableSince, {
-                      addSuffix: true,
-                    })
-                  : "Available"
+                  ? formatDistanceToNowStrict(charger.unavailableSince)
+                  : "None"
               }
             />
           </dl>
