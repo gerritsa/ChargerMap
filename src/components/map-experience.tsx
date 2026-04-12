@@ -14,7 +14,7 @@ import {
 import { ChargerDetailCard } from "@/components/charger-detail-card";
 import { ChargerMap } from "@/components/charger-map";
 import { StatusPill } from "@/components/status-pill";
-import { cn, formatCompactNumber, formatMoney } from "@/lib/utils";
+import { cn, formatCompactNumber, formatEnergyVolume, formatMoney } from "@/lib/utils";
 import type {
   Charger,
   ChargerMapMetrics,
@@ -454,15 +454,6 @@ function ChargerLocationListCard({
 
 function getPriceHeadline(priceText: string) {
   return priceText.split("\n")[0] ?? priceText;
-}
-
-function formatEnergyVolume(kwh: number) {
-  if (Math.abs(kwh) >= 1000) {
-    const mwh = kwh / 1000;
-    return `${mwh.toFixed(Math.abs(mwh) >= 10 ? 1 : 2).replace(/\.0$/, "")} MWh`;
-  }
-
-  return `${formatCompactNumber(kwh)} kWh`;
 }
 
 function getStatusSortPriority(status: Charger["statusNormalized"]) {

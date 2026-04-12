@@ -121,7 +121,7 @@ export function ChargerDetailCard({
           <DetailBlock label="Output" value={charger.outputText} />
           <div className="grid grid-cols-[74px_minmax(0,1fr)] items-start gap-2 border-b border-[var(--line-soft)] py-1">
             <p className="text-[9px] font-medium uppercase tracking-[0.14em] text-[var(--ink-500)]">
-              Last Checked
+              Last Refreshed
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-[12px] leading-[1rem] text-[var(--ink-700)]">

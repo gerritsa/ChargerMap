@@ -24,6 +24,15 @@ export function formatCompactNumber(value: number) {
   }).format(value);
 }
 
+export function formatEnergyVolume(kwh: number) {
+  if (Math.abs(kwh) >= 1000) {
+    const mwh = kwh / 1000;
+    return `${mwh.toFixed(Math.abs(mwh) >= 10 ? 1 : 2).replace(/\.0$/, "")} MWh`;
+  }
+
+  return `${formatCompactNumber(kwh)} kWh`;
+}
+
 export function formatPercent(value: number, maximumFractionDigits = 1) {
   return new Intl.NumberFormat("en-CA", {
     style: "percent",

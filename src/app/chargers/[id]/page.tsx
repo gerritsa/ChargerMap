@@ -90,7 +90,7 @@ export default async function ChargerDetailPage({
                       className={`h-2 w-2 rounded-full ${detail.hasLiveData && !isStale ? "bg-[#2f9a61]" : "bg-[#c6a24b]"}`}
                     />
                     <span className="font-medium">
-                      Status checked{" "}
+                      Status refreshed{" "}
                       {formatDistanceToNowStrict(charger.lastCheckedAt, {
                         addSuffix: true,
                       })}
@@ -305,7 +305,7 @@ export default async function ChargerDetailPage({
                     <thead className="bg-[rgba(247,239,225,0.75)]">
                       <tr>
                         <HeaderCell>Started</HeaderCell>
-                        <HeaderCell>Ended</HeaderCell>
+                        <HeaderCell>Session end</HeaderCell>
                         <HeaderCell>Duration</HeaderCell>
                         <HeaderCell className="text-right">Energy</HeaderCell>
                         <HeaderCell className="text-right">Revenue</HeaderCell>
@@ -321,7 +321,7 @@ export default async function ChargerDetailPage({
                           <BodyCell>
                             {session.isOpen
                               ? isStale
-                                ? "Not ended at last successful check"
+                                ? "Ongoing at last successful check"
                                 : "Still ongoing"
                               : formatDateTime(session.endedAt!)}
                           </BodyCell>
@@ -366,11 +366,11 @@ export default async function ChargerDetailPage({
 
                       <dl className="mt-4 grid gap-2 text-sm">
                         <DetailRow
-                          label="Ended"
+                          label="Session end"
                           value={
                             session.isOpen
                               ? isStale
-                                ? "Not ended at last successful check"
+                                ? "Ongoing at last successful check"
                                 : "Still ongoing"
                               : formatDateTime(session.endedAt!)
                           }

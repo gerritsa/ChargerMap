@@ -7,7 +7,14 @@ import { DashboardFilterBar } from "@/components/dashboard-filter-bar";
 import { DashboardInfoButton } from "@/components/dashboard-info-button";
 import { StatusPill } from "@/components/status-pill";
 import { getStatusStaleLabel, isStatusStale } from "@/lib/status-freshness";
-import { cn, formatCompactNumber, formatMoney, formatNumber, formatPercent } from "@/lib/utils";
+import {
+  cn,
+  formatCompactNumber,
+  formatEnergyVolume,
+  formatMoney,
+  formatNumber,
+  formatPercent,
+} from "@/lib/utils";
 import { buildDashboardListHref } from "@/lib/dashboard";
 import type {
   DashboardFilterOptions,
@@ -161,7 +168,7 @@ export function OccupancyListTable({
       <DesktopTable>
         <TableHeaderRow>
           <HeaderCell>Charger</HeaderCell>
-          <HeaderCell>Current status</HeaderCell>
+          <HeaderCell>Status</HeaderCell>
           <HeaderCell>Observed occupancy</HeaderCell>
           <HeaderCell>Tracked time</HeaderCell>
           <HeaderCell className="text-right">Sessions</HeaderCell>
@@ -465,9 +472,7 @@ function ProfitabilityDesktopRow({
         </Cell>
         <Cell className={TABLE_NUMERIC_CELL}>{formatMoney(row.estimatedAllTimeRevenue)}</Cell>
         <Cell className={TABLE_NUMERIC_CELL}>{formatNumber(row.totalSessions)}</Cell>
-        <Cell className={TABLE_NUMERIC_CELL}>
-          {formatCompactNumber(row.estimatedAllTimeEnergySold)} kWh
-        </Cell>
+        <Cell className={TABLE_NUMERIC_CELL}>{formatEnergyVolume(row.estimatedAllTimeEnergySold)}</Cell>
         <Cell className={TABLE_OBSERVED_CELL}>{formatPercent(row.observedOccupancyRate)}</Cell>
       </tr>
     </tbody>
@@ -532,7 +537,7 @@ function OccupancyMobileCard({
           { label: "Sessions", value: formatNumber(row.totalSessions) },
           { label: "Revenue", value: formatMoney(row.estimatedAllTimeRevenue) },
           {
-            label: "Current",
+            label: "Status",
             value: row.currentSessionStartedAt
               ? isStale
                 ? row.statusText
@@ -563,7 +568,7 @@ function ProfitabilityMobileCard({
           { label: "Sessions", value: formatNumber(row.totalSessions) },
           {
             label: "Energy sold",
-            value: `${formatCompactNumber(row.estimatedAllTimeEnergySold)} kWh`,
+            value: formatEnergyVolume(row.estimatedAllTimeEnergySold),
           },
           { label: "Observed occupancy", value: formatPercent(row.observedOccupancyRate) },
         ]}

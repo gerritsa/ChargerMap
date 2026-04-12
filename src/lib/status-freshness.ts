@@ -18,7 +18,7 @@ export function formatStatusStaleSince(lastCheckedAt: string) {
 }
 
 export function getStatusStaleMessage(lastCheckedAt: string) {
-  return `Status is not updated since ${formatStatusStaleSince(lastCheckedAt)}, data might be stale.`;
+  return `Status hasn't refreshed since ${formatStatusStaleSince(lastCheckedAt)}, so the data may be stale.`;
 }
 
 export function getStatusStaleLabel(lastCheckedAt: string) {
