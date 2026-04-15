@@ -17,9 +17,12 @@ import type {
   DashboardData,
   DashboardFilterOption,
   DashboardFilters,
+  DashboardOccupancyRow,
   DashboardOccupancyListData,
   DashboardPriceBucket,
+  DashboardProfitabilityRow,
   DashboardProfitabilityListData,
+  DashboardUnavailableRow,
   DashboardUnavailableListData,
   DashboardVisibleFilter,
 } from "@/types/dashboard";
@@ -1208,6 +1211,9 @@ async function getDashboardDataUncached(
   ]);
 
   const kpis = snapshot.kpis;
+  const unavailableRows = topUnavailableRows as DashboardUnavailableRow[];
+  const occupancyRows = topOccupancyRows as DashboardOccupancyRow[];
+  const profitableRows = topProfitableRows as DashboardProfitabilityRow[];
   kpis.observedOccupancyRate =
     snapshot.trackedSeconds > 0
       ? kpis.observedOccupancyRate / snapshot.trackedSeconds
@@ -1215,7 +1221,7 @@ async function getDashboardDataUncached(
 
   return {
     kpis,
-    occupancyRows: topOccupancyRows.map((row) => ({
+    occupancyRows: occupancyRows.map((row) => ({
       id: row.id,
       listingId: row.listingId,
       chargerIdentifier: row.chargerIdentifier,
@@ -1239,7 +1245,7 @@ async function getDashboardDataUncached(
       estimatedAllTimeRevenue: row.estimatedAllTimeRevenue,
       currentSessionStartedAt: row.currentSessionStartedAt,
     })),
-    unavailableRows: topUnavailableRows
+    unavailableRows: unavailableRows
       .filter((row) => row.unavailableSince)
       .map((row) => ({
         id: row.id,
@@ -1266,7 +1272,7 @@ async function getDashboardDataUncached(
         observedOccupancyRate: row.observedOccupancyRate,
         totalSessions: row.totalSessions,
       })),
-    profitableRows: topProfitableRows.map((row) => ({
+    profitableRows: profitableRows.map((row) => ({
       id: row.id,
       listingId: row.listingId,
       chargerIdentifier: row.chargerIdentifier,
@@ -1371,10 +1377,11 @@ async function getDashboardUnavailableListDataUncached(
   now = new Date(),
 ): Promise<DashboardUnavailableListData> {
   const data = await getDashboardListData("unavailable", rawSearchParams, now);
+  const rows = data.rows as DashboardUnavailableRow[];
 
   return {
     ...data,
-    rows: data.rows
+    rows: rows
       .filter((row) => row.unavailableSince)
       .map((row) => ({
         id: row.id,
@@ -1424,10 +1431,11 @@ async function getDashboardOccupancyListDataUncached(
   now = new Date(),
 ): Promise<DashboardOccupancyListData> {
   const data = await getDashboardListData("occupancy", rawSearchParams, now);
+  const rows = data.rows as DashboardOccupancyRow[];
 
   return {
     ...data,
-    rows: data.rows.map((row) => ({
+    rows: rows.map((row) => ({
       id: row.id,
       listingId: row.listingId,
       chargerIdentifier: row.chargerIdentifier,
@@ -1474,10 +1482,11 @@ async function getDashboardProfitabilityListDataUncached(
   now = new Date(),
 ): Promise<DashboardProfitabilityListData> {
   const data = await getDashboardListData("profitability", rawSearchParams, now);
+  const rows = data.rows as DashboardProfitabilityRow[];
 
   return {
     ...data,
-    rows: data.rows.map((row) => ({
+    rows: rows.map((row) => ({
       id: row.id,
       listingId: row.listingId,
       chargerIdentifier: row.chargerIdentifier,
