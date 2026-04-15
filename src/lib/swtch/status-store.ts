@@ -242,6 +242,23 @@ async function upsertChargerStats(
   }
 }
 
+async function refreshChargerPollRuntime(
+  supabase: SupabaseClient,
+  chargerId: string,
+  checkedAt: string,
+) {
+  const { error } = await supabase.rpc("refresh_charger_poll_runtime", {
+    target_charger_id: chargerId,
+    checked_at: checkedAt,
+  });
+
+  if (error) {
+    throw new Error(
+      `Failed to refresh poll runtime for charger ${chargerId}: ${error.message}`,
+    );
+  }
+}
+
 async function hasTransitionEventRecorded(
   supabase: SupabaseClient,
   chargerId: string,
@@ -511,6 +528,8 @@ export async function recordCheckError({
     estimatedAllTimeKwh: existingStats?.estimated_all_time_kwh ?? 0,
     estimatedAllTimeRevenue: existingStats?.estimated_all_time_revenue ?? 0,
   });
+
+  await refreshChargerPollRuntime(supabase, charger.chargerId, checkedAt);
 }
 
 export async function recordStatusCheck({
@@ -520,44 +539,36 @@ export async function recordStatusCheck({
   statusNormalized,
   checkedAt = new Date().toISOString(),
 }: RecordStatusCheckInput) {
-  const [existingStatus, existingStats] = await Promise.all([
-    getCurrentStatus(supabase, charger.chargerId),
-    getCurrentChargerStats(supabase, charger.chargerId),
-  ]);
+  const existingStatus = await getCurrentStatus(supabase, charger.chargerId);
   const rawStatusChanged =
     !existingStatus || existingStatus.status_text !== statusText;
   const normalizedStatusChanged =
     !existingStatus || existingStatus.status_normalized !== statusNormalized;
 
   if (!rawStatusChanged && !normalizedStatusChanged) {
-    await upsertCurrentStatus(supabase, charger.chargerId, {
-      statusText,
-      statusNormalized,
-      unavailableSince: existingStatus.unavailable_since,
-      occupiedSince: existingStatus.occupied_since,
-      lastChangedAt: existingStatus.last_changed_at,
-      lastCheckedAt: checkedAt,
-      checkError: null,
-    });
+    const maintenanceTasks: Promise<unknown>[] = [
+      refreshChargerPollRuntime(supabase, charger.chargerId, checkedAt),
+    ];
 
-    await upsertChargerStats(supabase, {
-      charger,
-      statusText,
-      statusNormalized,
-      unavailableSince: existingStatus.unavailable_since,
-      occupiedSince: existingStatus.occupied_since,
-      lastCheckedAt: checkedAt,
-      currentSessionStartedAt:
-        existingStats?.current_session_started_at ??
-        existingStatus.occupied_since ??
-        null,
-      observedOccupiedSeconds: existingStats?.observed_occupied_seconds ?? 0,
-      totalSessions: existingStats?.total_sessions ?? 0,
-      estimatedAllTimeKwh: existingStats?.estimated_all_time_kwh ?? 0,
-      estimatedAllTimeRevenue: existingStats?.estimated_all_time_revenue ?? 0,
-    });
+    if (existingStatus.check_error) {
+      maintenanceTasks.push(
+        upsertCurrentStatus(supabase, charger.chargerId, {
+          statusText,
+          statusNormalized,
+          unavailableSince: existingStatus.unavailable_since,
+          occupiedSince: existingStatus.occupied_since,
+          lastChangedAt: existingStatus.last_changed_at,
+          lastCheckedAt: checkedAt,
+          checkError: null,
+        }),
+      );
+    }
+
+    await Promise.all(maintenanceTasks);
     return;
   }
+
+  const existingStats = await getCurrentChargerStats(supabase, charger.chargerId);
 
   if (existingStatus) {
     await insertStatusEvent(
@@ -634,6 +645,8 @@ export async function recordStatusCheck({
       estimatedAllTimeKwh: aggregateUpdate.estimatedAllTimeKwh,
       estimatedAllTimeRevenue: aggregateUpdate.estimatedAllTimeRevenue,
     });
+
+    await refreshChargerPollRuntime(supabase, charger.chargerId, checkedAt);
     return;
   }
 
@@ -663,4 +676,6 @@ export async function recordStatusCheck({
     estimatedAllTimeKwh: existingStats?.estimated_all_time_kwh ?? 0,
     estimatedAllTimeRevenue: existingStats?.estimated_all_time_revenue ?? 0,
   });
+
+  await refreshChargerPollRuntime(supabase, charger.chargerId, checkedAt);
 }

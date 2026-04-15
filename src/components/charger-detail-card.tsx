@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 import { formatDistanceToNowStrict } from "date-fns";
 
-import { isStatusStale } from "@/lib/status-freshness";
 import { StatusPill } from "@/components/status-pill";
 import { cn } from "@/lib/utils";
 import type { Charger } from "@/types/charger";
@@ -34,7 +33,6 @@ export function ChargerDetailCard({
   const hasDistinctTitle =
     charger.title.trim().toLowerCase() !== charger.chargerIdentifier.trim().toLowerCase();
   const locationCount = chargersAtLocation.length;
-  const isStale = isStatusStale(charger.lastCheckedAt);
 
   return (
     <aside
@@ -121,20 +119,13 @@ export function ChargerDetailCard({
           <DetailBlock label="Output" value={charger.outputText} />
           <div className="grid grid-cols-[74px_minmax(0,1fr)] items-start gap-2 border-b border-[var(--line-soft)] py-1">
             <p className="text-[9px] font-medium uppercase tracking-[0.14em] text-[var(--ink-500)]">
-              Last Refreshed
+              Last Changed
             </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-[12px] leading-[1rem] text-[var(--ink-700)]">
-                {formatDistanceToNowStrict(charger.lastCheckedAt, {
-                  addSuffix: true,
-                })}
-              </p>
-              {isStale ? (
-                <span className="inline-flex items-center rounded-full border border-[rgba(198,162,75,0.32)] bg-[rgba(198,162,75,0.12)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8a6712]">
-                  Stale
-                </span>
-              ) : null}
-            </div>
+            <p className="text-[12px] leading-[1rem] text-[var(--ink-700)]">
+              {formatDistanceToNowStrict(charger.lastChangedAt, {
+                addSuffix: true,
+              })}
+            </p>
           </div>
         </div>
       </div>

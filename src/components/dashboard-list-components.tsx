@@ -6,7 +6,6 @@ import { formatDistanceToNowStrict } from "date-fns";
 import { DashboardFilterBar } from "@/components/dashboard-filter-bar";
 import { DashboardInfoButton } from "@/components/dashboard-info-button";
 import { StatusPill } from "@/components/status-pill";
-import { getStatusStaleLabel, isStatusStale } from "@/lib/status-freshness";
 import {
   cn,
   formatCompactNumber,
@@ -411,8 +410,6 @@ function OccupancyDesktopRow({
   row: DashboardOccupancyRow;
   href: string;
 }) {
-  const isStale = isStatusStale(row.lastCheckedAt);
-
   return (
     <tbody>
       <tr className="border-t border-[var(--line-soft)] align-top">
@@ -426,17 +423,19 @@ function OccupancyDesktopRow({
                 statusText={row.statusText}
                 statusNormalized={row.statusNormalized}
               />
-              {row.currentSessionStartedAt && !isStale ? (
-                <span className="text-xs text-[var(--ink-500)]">
-                  {`Live since ${formatDistanceToNowStrict(row.currentSessionStartedAt, {
-                    addSuffix: true,
-                  })}`}
-                </span>
-              ) : null}
+              <span className="text-xs text-[var(--ink-500)]">
+                {row.currentSessionStartedAt
+                  ? `Live since ${formatDistanceToNowStrict(row.currentSessionStartedAt, {
+                      addSuffix: true,
+                    })}`
+                  : `Changed ${formatDistanceToNowStrict(row.lastChangedAt, {
+                      addSuffix: true,
+                    })}`}
+              </span>
             </div>
-            {isStale ? (
-              <p className="text-xs font-medium text-[#8a6712]">
-                {getStatusStaleLabel(row.lastCheckedAt)}
+            {row.currentSessionStartedAt == null ? (
+              <p className="text-xs text-[var(--ink-500)]">
+                {row.statusText}
               </p>
             ) : null}
           </div>
@@ -508,16 +507,9 @@ function OccupancyMobileCard({
   row: DashboardOccupancyRow;
   href: string;
 }) {
-  const isStale = isStatusStale(row.lastCheckedAt);
-
   return (
     <MobileChargerCard href={href}>
       <MobileCardHeader row={row} />
-      {isStale ? (
-        <p className="mt-4 text-sm font-medium text-[#8a6712]">
-          {getStatusStaleLabel(row.lastCheckedAt)}
-        </p>
-      ) : null}
       <div className="mt-4 rounded-[18px] border border-[var(--line-soft)] bg-white/75 p-3">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -539,12 +531,12 @@ function OccupancyMobileCard({
           {
             label: "Status",
             value: row.currentSessionStartedAt
-              ? isStale
-                ? row.statusText
-                : `Live since ${formatDistanceToNowStrict(row.currentSessionStartedAt, {
-                    addSuffix: true,
-                  })}`
-              : row.statusText,
+              ? `Live since ${formatDistanceToNowStrict(row.currentSessionStartedAt, {
+                  addSuffix: true,
+                })}`
+              : `Changed ${formatDistanceToNowStrict(row.lastChangedAt, {
+                  addSuffix: true,
+                })}`,
           },
         ]}
       />

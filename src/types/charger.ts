@@ -36,6 +36,7 @@ export type Charger = {
   scheduleText: string;
   statusText: string;
   statusNormalized: ChargerStatusNormalized;
+  lastChangedAt: string;
   lastCheckedAt: string;
   totalSessions: number;
   estimatedAllTimeRevenue: number;

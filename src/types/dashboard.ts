@@ -66,6 +66,7 @@ export type DashboardTableCharger = {
   scheduleText: string;
   statusText: string;
   statusNormalized: ChargerStatusNormalized;
+  lastChangedAt: string;
   lastCheckedAt: string;
 };
 
@@ -135,6 +136,7 @@ export type DashboardChargerSession = {
 export type DashboardChargerDetail = {
   charger: DashboardTableCharger & {
     firstSeenAt: string;
+    lastChangedAt: string;
     lastCheckedAt: string;
     priceBucket: Exclude<DashboardPriceBucket, "all">;
     outputBucket: string;

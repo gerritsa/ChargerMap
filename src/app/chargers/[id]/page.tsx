@@ -20,7 +20,6 @@ import { ChargerMiniMapPreview } from "@/components/charger-mini-map-preview";
 import { DashboardMetricCard } from "@/components/dashboard-metric-card";
 import { StatusPill } from "@/components/status-pill";
 import { getDashboardChargerDetail } from "@/lib/dashboard";
-import { getStatusStaleLabel, isStatusStale } from "@/lib/status-freshness";
 import { getTrackingStartedAtLabel } from "@/lib/tracking-start";
 import {
   formatCompactNumber,
@@ -56,7 +55,6 @@ export default async function ChargerDetailPage({
     charger.title.trim().toLowerCase() !== charger.chargerIdentifier.trim().toLowerCase();
   const mapHref = buildMapHref(charger.id);
   const pricingHeadline = charger.priceText.split("\n")[0] ?? charger.priceText;
-  const isStale = isStatusStale(charger.lastCheckedAt);
 
   return (
     <main className="min-h-screen overflow-x-hidden pb-10 pt-0">
@@ -87,27 +85,17 @@ export default async function ChargerDetailPage({
                 <div className="flex shrink-0 justify-start lg:justify-end">
                   <div className="flex flex-wrap items-center gap-2 rounded-full border border-[var(--line-soft)] bg-white/78 px-3 py-1.5 text-xs text-[var(--ink-700)]">
                     <span
-                      className={`h-2 w-2 rounded-full ${detail.hasLiveData && !isStale ? "bg-[#2f9a61]" : "bg-[#c6a24b]"}`}
+                      className={`h-2 w-2 rounded-full ${detail.hasLiveData ? "bg-[#2f9a61]" : "bg-[#c6a24b]"}`}
                     />
                     <span className="font-medium">
-                      Status refreshed{" "}
-                      {formatDistanceToNowStrict(charger.lastCheckedAt, {
+                      Status changed{" "}
+                      {formatDistanceToNowStrict(charger.lastChangedAt, {
                         addSuffix: true,
                       })}
                     </span>
-                    {isStale ? (
-                      <span className="inline-flex items-center rounded-full border border-[rgba(198,162,75,0.32)] bg-[rgba(198,162,75,0.12)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8a6712]">
-                        Stale
-                      </span>
-                    ) : null}
                   </div>
                 </div>
               </div>
-              {isStale ? (
-                <p className="text-sm text-[#8a6712]">
-                  {getStatusStaleLabel(charger.lastCheckedAt)}
-                </p>
-              ) : null}
             </div>
 
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_320px] xl:items-start">
@@ -196,7 +184,7 @@ export default async function ChargerDetailPage({
                 eyebrow="Current"
                 label="Current state"
                 value={getCurrentStateValue(charger)}
-                helper={getCurrentStateHelper(charger, isStale)}
+                helper={getCurrentStateHelper(charger)}
                 icon={<TimerReset className="h-5 w-5" />}
                 compact
               />
@@ -320,9 +308,7 @@ export default async function ChargerDetailPage({
                           <BodyCell>{formatDateTime(session.startedAt)}</BodyCell>
                           <BodyCell>
                             {session.isOpen
-                              ? isStale
-                                ? "Ongoing at last successful check"
-                                : "Still ongoing"
+                              ? "Still ongoing"
                               : formatDateTime(session.endedAt!)}
                           </BodyCell>
                           <BodyCell>
@@ -369,9 +355,7 @@ export default async function ChargerDetailPage({
                           label="Session end"
                           value={
                             session.isOpen
-                              ? isStale
-                                ? "Ongoing at last successful check"
-                                : "Still ongoing"
+                              ? "Still ongoing"
                               : formatDateTime(session.endedAt!)
                           }
                         />
@@ -525,23 +509,7 @@ function getCurrentStateHelper(charger: {
   unavailableSince: string | null;
   currentSessionStartedAt: string | null;
   statusNormalized: string;
-}, isStale: boolean) {
-  if (isStale) {
-    if (charger.unavailableSince) {
-      return "Unavailable at the last successful check.";
-    }
-
-    if (charger.currentSessionStartedAt) {
-      return "Occupied at the last successful check.";
-    }
-
-    if (charger.statusNormalized === "not_live") {
-      return "Not live at the last successful check.";
-    }
-
-    return "No open occupied interval at the last successful check.";
-  }
-
+}) {
   if (charger.unavailableSince) {
     return `Since ${formatDistanceToNowStrict(charger.unavailableSince, { addSuffix: true })}.`;
   }

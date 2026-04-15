@@ -44,6 +44,7 @@ type SupabaseMapDetailRow = {
   schedule_text: string | null;
   status_text: string | null;
   status_normalized: Charger["statusNormalized"] | null;
+  last_changed_at: string | null;
   last_checked_at: string | null;
   total_sessions: number | null;
   estimated_all_time_revenue: number | null;
@@ -154,6 +155,7 @@ function normalizeDetailRow(row: SupabaseMapDetailRow): Charger | null {
     scheduleText: row.schedule_text ?? "Schedule pending",
     statusText: row.status_text ?? "UNKNOWN",
     statusNormalized: row.status_normalized ?? "unknown",
+    lastChangedAt: row.last_changed_at ?? row.last_checked_at ?? new Date().toISOString(),
     lastCheckedAt: row.last_checked_at ?? new Date().toISOString(),
     totalSessions: row.total_sessions ?? 0,
     estimatedAllTimeRevenue: row.estimated_all_time_revenue ?? 0,

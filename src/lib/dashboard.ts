@@ -49,6 +49,7 @@ type SupabaseDashboardRow = {
   status_text: string | null;
   status_normalized: ChargerStatusNormalized | null;
   unavailable_since: string | null;
+  last_changed_at: string | null;
   last_checked_at: string | null;
   region: string | null;
   price_bucket: string | null;
@@ -118,6 +119,7 @@ type SupabaseOccupancyListRow = {
   price_text: string | null;
   status_text: string | null;
   status_normalized: ChargerStatusNormalized | null;
+  last_changed_at: string | null;
   last_checked_at: string | null;
   observed_occupancy_rate: number | null;
   tracked_seconds: number | null;
@@ -172,6 +174,7 @@ type DashboardBaseRow = {
   statusText: string;
   statusNormalized: ChargerStatusNormalized;
   unavailableSince: string | null;
+  lastChangedAt: string;
   lastCheckedAt: string;
   trackedSeconds: number;
   observedOccupiedSeconds: number;
@@ -346,6 +349,7 @@ function normalizeSupabaseDashboardRow(
     row.charger_identifier?.trim() || `SWTCH-${row.listing_id}`;
   const firstSeenAt = row.first_seen_at ?? now.toISOString();
   const lastCheckedAt = row.last_checked_at ?? now.toISOString();
+  const lastChangedAt = row.last_changed_at ?? lastCheckedAt;
   const referenceTime = new Date(lastCheckedAt);
   const trackedSeconds =
     row.tracked_seconds ?? computeTrackedSeconds(firstSeenAt, referenceTime);
@@ -392,6 +396,7 @@ function normalizeSupabaseDashboardRow(
     statusText: row.status_text ?? "UNKNOWN",
     statusNormalized: row.status_normalized ?? "unknown",
     unavailableSince: row.unavailable_since ?? null,
+    lastChangedAt,
     lastCheckedAt,
     trackedSeconds,
     observedOccupiedSeconds,
@@ -457,6 +462,7 @@ function normalizeUnavailableListRow(
 
   return {
     ...base,
+    lastChangedAt: row.unavailable_since,
     lastCheckedAt: now.toISOString(),
     unavailableSince: row.unavailable_since,
     unavailableDurationSeconds: Math.max(
@@ -489,6 +495,7 @@ function normalizeOccupancyListRow(
 
   return {
     ...base,
+    lastChangedAt: row.last_changed_at ?? row.last_checked_at ?? now.toISOString(),
     lastCheckedAt: row.last_checked_at ?? now.toISOString(),
     observedOccupancyRate: row.observed_occupancy_rate ?? 0,
     observedOccupiedSeconds: 0,
@@ -520,6 +527,7 @@ function normalizeProfitabilityListRow(
 
   return {
     ...base,
+    lastChangedAt: now.toISOString(),
     lastCheckedAt: now.toISOString(),
     estimatedAllTimeRevenue: row.estimated_all_time_revenue ?? 0,
     estimatedAllTimeEnergySold: row.estimated_all_time_kwh ?? 0,
@@ -568,6 +576,7 @@ function buildMockDashboardRows(now: Date) {
       statusText: charger.statusText,
       statusNormalized: charger.statusNormalized,
       unavailableSince: charger.unavailableSince,
+      lastChangedAt: charger.lastChangedAt,
       lastCheckedAt: charger.lastCheckedAt,
       trackedSeconds,
       observedOccupiedSeconds,
@@ -1241,6 +1250,7 @@ async function getDashboardDataUncached(
       scheduleText: row.scheduleText,
       statusText: row.statusText,
       statusNormalized: row.statusNormalized,
+      lastChangedAt: row.lastChangedAt,
       lastCheckedAt: row.lastCheckedAt,
       observedOccupancyRate: row.observedOccupancyRate,
       observedOccupiedSeconds: row.observedOccupiedSeconds,
@@ -1267,6 +1277,7 @@ async function getDashboardDataUncached(
         scheduleText: row.scheduleText,
         statusText: row.statusText,
         statusNormalized: row.statusNormalized,
+        lastChangedAt: row.lastChangedAt,
         lastCheckedAt: row.lastCheckedAt,
         unavailableSince: row.unavailableSince!,
         unavailableDurationSeconds: Math.max(
@@ -1292,6 +1303,7 @@ async function getDashboardDataUncached(
       scheduleText: row.scheduleText,
       statusText: row.statusText,
       statusNormalized: row.statusNormalized,
+      lastChangedAt: row.lastChangedAt,
       lastCheckedAt: row.lastCheckedAt,
       estimatedAllTimeRevenue: row.estimatedAllTimeRevenue,
       estimatedAllTimeEnergySold: row.estimatedAllTimeEnergySold,
@@ -1403,6 +1415,7 @@ async function getDashboardUnavailableListDataUncached(
         scheduleText: row.scheduleText,
         statusText: row.statusText,
         statusNormalized: row.statusNormalized,
+        lastChangedAt: row.lastChangedAt,
         lastCheckedAt: row.lastCheckedAt,
         unavailableSince: row.unavailableSince!,
         unavailableDurationSeconds: Math.max(
@@ -1455,6 +1468,7 @@ async function getDashboardOccupancyListDataUncached(
       scheduleText: row.scheduleText,
       statusText: row.statusText,
       statusNormalized: row.statusNormalized,
+      lastChangedAt: row.lastChangedAt,
       lastCheckedAt: row.lastCheckedAt,
       observedOccupancyRate: row.observedOccupancyRate,
       observedOccupiedSeconds: row.observedOccupiedSeconds,
@@ -1506,6 +1520,7 @@ async function getDashboardProfitabilityListDataUncached(
       scheduleText: row.scheduleText,
       statusText: row.statusText,
       statusNormalized: row.statusNormalized,
+      lastChangedAt: row.lastChangedAt,
       lastCheckedAt: row.lastCheckedAt,
       estimatedAllTimeRevenue: row.estimatedAllTimeRevenue,
       estimatedAllTimeEnergySold: row.estimatedAllTimeEnergySold,
@@ -1585,6 +1600,7 @@ async function getDashboardChargerDetailUncached(
         statusText: charger.statusText,
         statusNormalized: charger.statusNormalized,
         firstSeenAt: charger.firstSeenAt,
+        lastChangedAt: charger.lastChangedAt,
         lastCheckedAt: charger.lastCheckedAt,
         priceBucket: charger.priceBucket,
         outputBucket: charger.outputBucket,
@@ -1642,6 +1658,7 @@ async function getDashboardChargerDetailUncached(
       statusText: charger.statusText,
       statusNormalized: charger.statusNormalized,
       firstSeenAt: charger.firstSeenAt,
+      lastChangedAt: charger.lastChangedAt,
       lastCheckedAt: charger.lastCheckedAt,
       priceBucket: charger.priceBucket,
       outputBucket: charger.outputBucket,
