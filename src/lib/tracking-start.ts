@@ -1,25 +1,35 @@
+import { unstable_cache } from "next/cache";
+
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 type TrackingStartRow = {
   value_text: string | null;
 };
 
+const getCachedTrackingStartedAtForHeader = unstable_cache(
+  async () => {
+    const supabase = createServerSupabaseClient();
+
+    if (!supabase) {
+      return null;
+    }
+
+    const { data, error } = await supabase.rpc("get_public_tracking_started_at");
+
+    if (error) {
+      console.error("Failed to load tracking start for header", error.message);
+      return null;
+    }
+
+    const row = ((data ?? []) as TrackingStartRow[])[0];
+    return row?.value_text ?? null;
+  },
+  ["tracking-started-at"],
+  { revalidate: 300 },
+);
+
 export async function getTrackingStartedAtForHeader() {
-  const supabase = createServerSupabaseClient();
-
-  if (!supabase) {
-    return null;
-  }
-
-  const { data, error } = await supabase.rpc("get_public_tracking_started_at");
-
-  if (error) {
-    console.error("Failed to load tracking start for header", error.message);
-    return null;
-  }
-
-  const row = ((data ?? []) as TrackingStartRow[])[0];
-  return row?.value_text ?? null;
+  return getCachedTrackingStartedAtForHeader();
 }
 
 export function formatTrackingStartedAtLabel(value: string | null) {

@@ -31,6 +31,7 @@ const STATUS_FILTERS: Charger["statusNormalized"][] = [
 ];
 
 type MapExperienceProps = {
+  initialBounds: MapBounds;
   initialChargers: MapChargerSummary[];
   initialMetrics: ChargerMapMetrics;
   initialSelectedGroup?: Charger[];
@@ -38,7 +39,29 @@ type MapExperienceProps = {
   trackingStartedAtLabel?: string | null;
 };
 
+type MapViewportPayload = {
+  summaries: MapChargerSummary[];
+  metrics: ChargerMapMetrics;
+};
+
+type ChargerGroupPayload = {
+  chargers: Charger[];
+  selectedId: string | null;
+};
+
+function buildViewportCacheKey(bounds: MapBounds) {
+  return [
+    bounds.west,
+    bounds.south,
+    bounds.east,
+    bounds.north,
+  ]
+    .map((value) => value.toFixed(4))
+    .join(":");
+}
+
 export function MapExperience({
+  initialBounds,
   initialChargers,
   initialMetrics,
   initialSelectedGroup = [],
@@ -59,6 +82,31 @@ export function MapExperience({
   const viewportTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const viewportRequestRef = useRef(0);
   const selectionRequestRef = useRef(0);
+  const skipNextViewportSyncRef = useRef(false);
+  const viewportCacheRef = useRef(
+    new Map<string, MapViewportPayload>([
+      [
+        buildViewportCacheKey(initialBounds),
+        {
+          summaries: initialChargers,
+          metrics: initialMetrics,
+        },
+      ],
+    ]),
+  );
+  const chargerGroupCacheRef = useRef(
+    new Map<string, ChargerGroupPayload>(
+      initialSelectedGroup.length
+        ? initialSelectedGroup.map((charger) => [
+            charger.id,
+            {
+              chargers: initialSelectedGroup,
+              selectedId: initialSelectedId,
+            },
+          ])
+        : [],
+    ),
+  );
   const selected =
     selectedGroup.find((charger) => charger.id === selectedId) ?? selectedGroup[0] ?? null;
   const hasSelectionSheet = selected != null;
@@ -71,8 +119,25 @@ export function MapExperience({
   );
   const isFiltered = selectedStatuses.length !== STATUS_FILTERS.length;
 
+  function applyViewportPayload(payload: MapViewportPayload) {
+    setAllChargers(payload.summaries);
+    setMetrics(payload.metrics);
+
+    if (selectedId && !payload.summaries.some((charger) => charger.id === selectedId)) {
+      handleClearSelection();
+    }
+  }
+
   async function loadViewport(bounds: MapBounds) {
     const requestId = ++viewportRequestRef.current;
+    const cacheKey = buildViewportCacheKey(bounds);
+    const cachedPayload = viewportCacheRef.current.get(cacheKey);
+
+    if (cachedPayload) {
+      applyViewportPayload(cachedPayload);
+      return;
+    }
+
     const params = new URLSearchParams({
       west: bounds.west.toString(),
       south: bounds.south.toString(),
@@ -87,17 +152,9 @@ export function MapExperience({
       return;
     }
 
-    const payload = (await response.json()) as {
-      summaries: MapChargerSummary[];
-      metrics: ChargerMapMetrics;
-    };
-
-    setAllChargers(payload.summaries);
-    setMetrics(payload.metrics);
-
-    if (selectedId && !payload.summaries.some((charger) => charger.id === selectedId)) {
-      handleClearSelection();
-    }
+    const payload = (await response.json()) as MapViewportPayload;
+    viewportCacheRef.current.set(cacheKey, payload);
+    applyViewportPayload(payload);
   }
 
   function handleViewportChange(bounds: MapBounds) {
@@ -105,13 +162,35 @@ export function MapExperience({
       clearTimeout(viewportTimeoutRef.current);
     }
 
+    if (skipNextViewportSyncRef.current) {
+      skipNextViewportSyncRef.current = false;
+      return;
+    }
+
     viewportTimeoutRef.current = setTimeout(() => {
       void loadViewport(bounds);
     }, 250);
   }
 
+  function applySelectionPayload(
+    payload: ChargerGroupPayload,
+    fallbackId: string,
+  ) {
+    setSelectedGroup(payload.chargers);
+    setSelectedId(payload.selectedId ?? fallbackId);
+    setSelectionView(payload.chargers.length > 1 ? "list" : "details");
+  }
+
   async function handleSelectCharger(chargerId: string) {
+    skipNextViewportSyncRef.current = true;
     setSelectedId(chargerId);
+    const cachedPayload = chargerGroupCacheRef.current.get(chargerId);
+
+    if (cachedPayload) {
+      applySelectionPayload(cachedPayload, chargerId);
+      return;
+    }
+
     const requestId = ++selectionRequestRef.current;
     const response = await fetch(`/api/map/chargers/${chargerId}`, {
       cache: "no-store",
@@ -121,17 +200,17 @@ export function MapExperience({
       return;
     }
 
-    const payload = (await response.json()) as {
-      chargers: Charger[];
-      selectedId: string | null;
-    };
+    const payload = (await response.json()) as ChargerGroupPayload;
 
-    setSelectedGroup(payload.chargers);
-    setSelectedId(payload.selectedId ?? chargerId);
-    setSelectionView(payload.chargers.length > 1 ? "list" : "details");
+    for (const charger of payload.chargers) {
+      chargerGroupCacheRef.current.set(charger.id, payload);
+    }
+
+    applySelectionPayload(payload, chargerId);
   }
 
   function handleClearSelection() {
+    skipNextViewportSyncRef.current = true;
     setSelectedGroup([]);
     setSelectedId(null);
     setSelectionView("details");

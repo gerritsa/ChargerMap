@@ -247,7 +247,6 @@ export function ChargerMap({
       return;
     }
 
-    focusCharger(selected);
     onSelect(selected.id);
   }
 

@@ -1,7 +1,8 @@
+import { unstable_cache } from "next/cache";
+
 import { mockChargers } from "@/data/mock-chargers";
 import {
   buildMapMetricsFromDetails,
-  buildMapMetricsFromSummariesAndRows,
   DEFAULT_MAP_BOUNDS,
 } from "@/lib/charger-stats";
 import { isPointInToronto } from "@/lib/toronto-scope";
@@ -26,9 +27,6 @@ type SupabaseMapSummaryRow = {
   status_normalized: Charger["statusNormalized"] | null;
   lat: number | null;
   lng: number | null;
-  total_sessions: number | null;
-  estimated_all_time_revenue: number | null;
-  estimated_all_time_kwh: number | null;
 };
 
 type SupabaseMapDetailRow = {
@@ -67,7 +65,25 @@ type SupabaseAggregateValueRow = {
   total_estimated_kwh: number | null;
 };
 
-const MAP_PAGE_SIZE = 1000;
+type SupabaseMapViewportPayloadRow = {
+  summaries: SupabaseMapSummaryRow[] | null;
+  total_chargers: number | null;
+  currently_occupied: number | null;
+  available_now: number | null;
+  unavailable_now: number | null;
+  not_live_now: number | null;
+  all_time_sessions: number | null;
+  estimated_all_time_revenue: number | null;
+  estimated_all_time_kwh: number | null;
+  last_24_hours_estimated_kwh: number | null;
+  raw_status_breakdown:
+    | Array<{
+        status_text: string | null;
+        status_normalized: Charger["statusNormalized"] | null;
+        count: number | null;
+      }>
+    | null;
+};
 
 function isWithinBounds(bounds: MapBounds, lat: number, lng: number) {
   return (
@@ -148,29 +164,6 @@ function buildMockMapData(bounds: MapBounds): MapDataResponse {
   };
 }
 
-async function getLast24HoursEstimatedKwhForChargers(
-  supabase: ReturnType<typeof createServerSupabaseClient>,
-  chargerIds: string[],
-) {
-  if (!supabase || chargerIds.length === 0) {
-    return 0;
-  }
-
-  const { data, error } = await supabase.rpc(
-    "get_public_estimated_kwh_for_chargers",
-    {
-      target_charger_ids: chargerIds,
-    },
-  );
-
-  if (error) {
-    return 0;
-  }
-
-  const row = ((data ?? []) as SupabaseAggregateValueRow[])[0];
-  return row?.total_estimated_kwh ?? 0;
-}
-
 async function getLast24HoursEstimatedKwhForScope(
   supabase: ReturnType<typeof createServerSupabaseClient>,
   scope: string,
@@ -219,52 +212,43 @@ export async function getMapDataForBounds(
     return buildMockMapData(bounds);
   }
 
-  const rows: SupabaseMapSummaryRow[] = [];
-  let pageOffset = 0;
+  const { data, error } = await supabase.rpc("get_public_map_viewport_payload", {
+    bounds_west: bounds.west,
+    bounds_south: bounds.south,
+    bounds_east: bounds.east,
+    bounds_north: bounds.north,
+  });
 
-  while (true) {
-    const { data, error } = await supabase.rpc("get_map_charger_summaries_paged", {
-      bounds_west: bounds.west,
-      bounds_south: bounds.south,
-      bounds_east: bounds.east,
-      bounds_north: bounds.north,
-      page_limit: MAP_PAGE_SIZE,
-      page_offset: pageOffset,
-    });
-
-    if (error || !data) {
-      return buildMockMapData(bounds);
-    }
-
-    const pageRows = data as unknown as SupabaseMapSummaryRow[];
-    rows.push(...pageRows);
-
-    if (pageRows.length < MAP_PAGE_SIZE) {
-      break;
-    }
-
-    pageOffset += MAP_PAGE_SIZE;
+  if (error || !data) {
+    return buildMockMapData(bounds);
   }
 
-  const summaries = rows
+  const payloadRow = ((data ?? []) as SupabaseMapViewportPayloadRow[])[0];
+  const summaryRows = (payloadRow?.summaries ?? []) as SupabaseMapSummaryRow[];
+  const summaries = summaryRows
     .map((row) => normalizeSummaryRow(row))
     .filter((summary): summary is MapChargerSummary => Boolean(summary));
-  const last24HoursEstimatedKwh = await getLast24HoursEstimatedKwhForChargers(
-    supabase,
-    summaries.map((summary) => summary.id),
-  );
 
   return {
     summaries,
-    metrics: buildMapMetricsFromSummariesAndRows(
-      summaries,
-      rows.map((row) => ({
-        totalSessions: row.total_sessions ?? 0,
-        estimatedAllTimeRevenue: row.estimated_all_time_revenue ?? 0,
-        estimatedAllTimeKwh: row.estimated_all_time_kwh ?? 0,
+    metrics: {
+      totalChargers: payloadRow?.total_chargers ?? summaries.length,
+      currentlyOccupied: payloadRow?.currently_occupied ?? 0,
+      availableNow: payloadRow?.available_now ?? 0,
+      unavailableNow: payloadRow?.unavailable_now ?? 0,
+      notLiveNow: payloadRow?.not_live_now ?? 0,
+      allTimeSessions: payloadRow?.all_time_sessions ?? 0,
+      allTimeEstimatedRevenue: payloadRow?.estimated_all_time_revenue ?? 0,
+      allTimeEstimatedKwh: payloadRow?.estimated_all_time_kwh ?? 0,
+      last24HoursEstimatedKwh: payloadRow?.last_24_hours_estimated_kwh ?? 0,
+      rawStatusBreakdown: ((payloadRow?.raw_status_breakdown ?? []) as NonNullable<
+        SupabaseMapViewportPayloadRow["raw_status_breakdown"]
+      >).map((row) => ({
+        statusText: row.status_text ?? "UNKNOWN",
+        statusNormalized: row.status_normalized ?? "unknown",
+        count: row.count ?? 0,
       })),
-      last24HoursEstimatedKwh,
-    ),
+    },
   };
 }
 
@@ -324,7 +308,9 @@ export async function getMapNetworkMetrics(): Promise<ChargerMapMetrics> {
   };
 }
 
-export async function getMapChargerGroup(chargerId: string): Promise<Charger[] | null> {
+async function getMapChargerGroupUncached(
+  chargerId: string,
+): Promise<Charger[] | null> {
   const supabase = createServerSupabaseClient();
 
   if (!supabase) {
@@ -347,6 +333,18 @@ export async function getMapChargerGroup(chargerId: string): Promise<Charger[] |
     );
 
   return chargers.length ? chargers : null;
+}
+
+const getCachedMapChargerGroup = unstable_cache(
+  async (chargerId: string) => getMapChargerGroupUncached(chargerId),
+  ["map-charger-group"],
+  { revalidate: 60 },
+);
+
+export async function getMapChargerGroup(
+  chargerId: string,
+): Promise<Charger[] | null> {
+  return getCachedMapChargerGroup(chargerId);
 }
 
 export { DEFAULT_MAP_BOUNDS };

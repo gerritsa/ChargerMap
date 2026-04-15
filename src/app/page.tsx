@@ -29,6 +29,7 @@ export default async function Home({ searchParams }: HomePageProps) {
     <main className="min-h-screen overflow-hidden pb-0 pt-0">
       <AppHeader trackingStartedAtLabel={trackingStartedAtLabel} />
       <MapExperience
+        initialBounds={DEFAULT_MAP_BOUNDS}
         initialChargers={mapData.summaries}
         initialMetrics={mapData.metrics}
         initialSelectedGroup={initialSelectedGroup ?? []}

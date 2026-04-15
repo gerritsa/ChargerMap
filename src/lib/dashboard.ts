@@ -1,4 +1,5 @@
 import { differenceInSeconds, subDays } from "date-fns";
+import { unstable_cache } from "next/cache";
 
 import {
   computeObservedOccupancyRate,
@@ -19,7 +20,6 @@ import type {
   DashboardOccupancyListData,
   DashboardPriceBucket,
   DashboardProfitabilityListData,
-  DashboardStatusFilter,
   DashboardUnavailableListData,
   DashboardVisibleFilter,
 } from "@/types/dashboard";
@@ -86,6 +86,58 @@ type SupabaseCountRow = {
 type SupabaseRawStatusRow = {
   status_text: string | null;
   status_count: number | null;
+};
+
+type SupabaseUnavailableListRow = {
+  charger_id: string;
+  listing_id: number | null;
+  charger_identifier: string | null;
+  title: string | null;
+  output_text: string | null;
+  price_text: string | null;
+  status_text: string | null;
+  status_normalized: ChargerStatusNormalized | null;
+  unavailable_since: string | null;
+  observed_occupancy_rate: number | null;
+  total_sessions: number | null;
+};
+
+type SupabaseOccupancyListRow = {
+  charger_id: string;
+  listing_id: number | null;
+  charger_identifier: string | null;
+  title: string | null;
+  output_text: string | null;
+  price_text: string | null;
+  status_text: string | null;
+  status_normalized: ChargerStatusNormalized | null;
+  last_checked_at: string | null;
+  observed_occupancy_rate: number | null;
+  tracked_seconds: number | null;
+  total_sessions: number | null;
+  estimated_all_time_revenue: number | null;
+  current_session_started_at: string | null;
+};
+
+type SupabaseProfitabilityListRow = {
+  charger_id: string;
+  listing_id: number | null;
+  charger_identifier: string | null;
+  title: string | null;
+  output_text: string | null;
+  price_text: string | null;
+  status_text: string | null;
+  status_normalized: ChargerStatusNormalized | null;
+  estimated_all_time_revenue: number | null;
+  estimated_all_time_kwh: number | null;
+  total_sessions: number | null;
+  observed_occupancy_rate: number | null;
+};
+
+type SupabaseDashboardListMetaRow = {
+  total_count: number | null;
+  output_options: string[] | null;
+  raw_status_options: string[] | null;
 };
 
 type DashboardBaseRow = {
@@ -341,6 +393,134 @@ function normalizeSupabaseDashboardRow(
   };
 }
 
+function buildDashboardListIdentity(
+  listingId: number | null,
+  chargerId: string,
+  chargerIdentifier: string | null,
+  title: string | null,
+  outputText: string | null,
+  priceText: string | null,
+  statusText: string | null,
+  statusNormalized: ChargerStatusNormalized | null,
+) {
+  if (listingId == null) {
+    return null;
+  }
+
+  const normalizedIdentifier =
+    chargerIdentifier?.trim() || `SWTCH-${listingId}`;
+
+  return {
+    id: chargerId,
+    listingId,
+    chargerIdentifier: normalizedIdentifier,
+    title: title ?? `SWTCH Charger ${normalizedIdentifier}`,
+    imageUrl: null,
+    address: null,
+    mapUrl: null,
+    lat: null,
+    lng: null,
+    region: null,
+    outputText: outputText ?? "Unknown output",
+    priceText: priceText ?? "Pricing pending",
+    scheduleText: "Schedule pending",
+    statusText: statusText ?? "UNKNOWN",
+    statusNormalized: statusNormalized ?? "unknown",
+  };
+}
+
+function normalizeUnavailableListRow(
+  row: SupabaseUnavailableListRow,
+  now: Date,
+): DashboardUnavailableRow | null {
+  const base = buildDashboardListIdentity(
+    row.listing_id,
+    row.charger_id,
+    row.charger_identifier,
+    row.title,
+    row.output_text,
+    row.price_text,
+    row.status_text,
+    row.status_normalized,
+  );
+
+  if (!base || !row.unavailable_since) {
+    return null;
+  }
+
+  return {
+    ...base,
+    lastCheckedAt: now.toISOString(),
+    unavailableSince: row.unavailable_since,
+    unavailableDurationSeconds: Math.max(
+      0,
+      differenceInSeconds(now, new Date(row.unavailable_since)),
+    ),
+    observedOccupancyRate: row.observed_occupancy_rate ?? 0,
+    totalSessions: row.total_sessions ?? 0,
+  };
+}
+
+function normalizeOccupancyListRow(
+  row: SupabaseOccupancyListRow,
+  now: Date,
+): DashboardOccupancyRow | null {
+  const base = buildDashboardListIdentity(
+    row.listing_id,
+    row.charger_id,
+    row.charger_identifier,
+    row.title,
+    row.output_text,
+    row.price_text,
+    row.status_text,
+    row.status_normalized,
+  );
+
+  if (!base) {
+    return null;
+  }
+
+  return {
+    ...base,
+    lastCheckedAt: row.last_checked_at ?? now.toISOString(),
+    observedOccupancyRate: row.observed_occupancy_rate ?? 0,
+    observedOccupiedSeconds: 0,
+    trackedSeconds: row.tracked_seconds ?? 0,
+    totalSessions: row.total_sessions ?? 0,
+    estimatedAllTimeRevenue: row.estimated_all_time_revenue ?? 0,
+    currentSessionStartedAt: row.current_session_started_at ?? null,
+  };
+}
+
+function normalizeProfitabilityListRow(
+  row: SupabaseProfitabilityListRow,
+  now: Date,
+): DashboardProfitabilityRow | null {
+  const base = buildDashboardListIdentity(
+    row.listing_id,
+    row.charger_id,
+    row.charger_identifier,
+    row.title,
+    row.output_text,
+    row.price_text,
+    row.status_text,
+    row.status_normalized,
+  );
+
+  if (!base) {
+    return null;
+  }
+
+  return {
+    ...base,
+    lastCheckedAt: now.toISOString(),
+    estimatedAllTimeRevenue: row.estimated_all_time_revenue ?? 0,
+    estimatedAllTimeEnergySold: row.estimated_all_time_kwh ?? 0,
+    totalSessions: row.total_sessions ?? 0,
+    observedOccupancyRate: row.observed_occupancy_rate ?? 0,
+  };
+}
+
 function buildMockDashboardRows(now: Date) {
   return mockChargers
     .map<DashboardBaseRow>((charger) => {
@@ -390,63 +570,6 @@ function buildMockDashboardRows(now: Date) {
     };
     })
     .filter((row) => isPointInToronto(row.lat ?? 0, row.lng ?? 0));
-}
-
-async function fetchDashboardUniverseOptions() {
-  const supabase = createServerSupabaseClient();
-
-  if (!supabase) {
-    const rows = buildMockDashboardRows(new Date());
-    return {
-      regions: Array.from(
-        new Set(rows.map((row) => row.region).filter((value): value is string => Boolean(value))),
-      ).sort((left, right) => left.localeCompare(right)),
-      outputs: Array.from(new Set(rows.map((row) => row.outputBucket))).sort(
-        (left, right) => Number(left) - Number(right),
-      ),
-      hasLiveData: false,
-    };
-  }
-
-  const [{ data: regionData, error: regionError }, { data: outputData, error: outputError }] =
-    await Promise.all([
-      supabase.rpc("get_dashboard_regions", {
-        filter_status: null,
-        filter_price: null,
-        filter_output: null,
-      }),
-      supabase.rpc("get_dashboard_outputs", {
-        filter_status: null,
-        filter_region: null,
-        filter_price: null,
-      }),
-    ]);
-
-  if (regionError || outputError || !regionData || !outputData) {
-    return {
-      regions: [] as string[],
-      outputs: [] as string[],
-      hasLiveData: false,
-    };
-  }
-
-  return {
-    regions: Array.from(
-      new Set(
-        (regionData as Array<{ region: string | null }>)
-          .map((row) => row.region)
-          .filter((value): value is string => Boolean(value)),
-      ),
-    ).sort((left, right) => left.localeCompare(right)),
-    outputs: Array.from(
-      new Set(
-        ((outputData as Array<{ output_bucket: string | null }>) ?? [])
-          .map((row) => row.output_bucket ?? "unknown")
-          .filter((value): value is string => Boolean(value)),
-      ),
-    ).sort((left, right) => Number(left) - Number(right)),
-    hasLiveData: true,
-  };
 }
 
 async function getDashboardSnapshot(filters: DashboardFilters, now: Date) {
@@ -585,6 +708,61 @@ async function fetchDashboardTopRows(
       .slice(options.offset ?? 0, (options.offset ?? 0) + (options.limit ?? 10));
   }
 
+  if (options.statusFilter === "unavailable" && options.orderBy === "unavailable_since") {
+    const { data, error } = await supabase.rpc("get_public_dashboard_unavailable_rows", {
+      filter_raw_status: filters.rawStatus === "all" ? null : filters.rawStatus,
+      filter_price: filters.price === "all" ? null : filters.price,
+      filter_output: filters.output === "all" ? null : filters.output,
+      target_limit: options.limit ?? 10,
+      target_offset: options.offset ?? 0,
+    });
+
+    if (error || !data) {
+      return [] as DashboardBaseRow[];
+    }
+
+    return ((data as unknown) as SupabaseUnavailableListRow[])
+      .map((row) => normalizeUnavailableListRow(row, now))
+      .filter((row): row is DashboardUnavailableRow => Boolean(row));
+  }
+
+  if (options.orderBy === "observed_occupancy_rate" && options.excludeNotLive) {
+    const { data, error } = await supabase.rpc("get_public_dashboard_occupancy_rows", {
+      filter_raw_status: filters.rawStatus === "all" ? null : filters.rawStatus,
+      filter_price: filters.price === "all" ? null : filters.price,
+      filter_output: filters.output === "all" ? null : filters.output,
+      exclude_not_live: shouldExcludeNotLive,
+      target_limit: options.limit ?? 10,
+      target_offset: options.offset ?? 0,
+    });
+
+    if (error || !data) {
+      return [] as DashboardBaseRow[];
+    }
+
+    return ((data as unknown) as SupabaseOccupancyListRow[])
+      .map((row) => normalizeOccupancyListRow(row, now))
+      .filter((row): row is DashboardOccupancyRow => Boolean(row));
+  }
+
+  if (options.orderBy === "estimated_all_time_revenue" && options.excludeNotLive) {
+    const { data, error } = await supabase.rpc("get_public_dashboard_profitability_rows", {
+      filter_price: filters.price === "all" ? null : filters.price,
+      filter_output: filters.output === "all" ? null : filters.output,
+      exclude_not_live: shouldExcludeNotLive,
+      target_limit: options.limit ?? 10,
+      target_offset: options.offset ?? 0,
+    });
+
+    if (error || !data) {
+      return [] as DashboardBaseRow[];
+    }
+
+    return ((data as unknown) as SupabaseProfitabilityListRow[])
+      .map((row) => normalizeProfitabilityListRow(row, now))
+      .filter((row): row is DashboardProfitabilityRow => Boolean(row));
+  }
+
   const { data, error } = await supabase.rpc("get_public_dashboard_rows", {
     filter_status: filters.status === "all" ? null : filters.status,
     filter_raw_status: filters.rawStatus === "all" ? null : filters.rawStatus,
@@ -653,6 +831,69 @@ async function countDashboardRows(
 
   const row = ((data ?? []) as SupabaseCountRow[])[0];
   return row?.total_count ?? 0;
+}
+
+async function fetchDashboardListMeta(
+  kind: "unavailable" | "occupancy" | "profitability",
+  filters: DashboardFilters,
+  now: Date,
+) {
+  const supabase = createServerSupabaseClient();
+
+  if (!supabase) {
+    const statusFilter = kind === "unavailable" ? "unavailable" : undefined;
+    const [totalItems, outputFilterOptions, rawStatusOptions] = await Promise.all([
+      countDashboardRows(filters, now, {
+        statusFilter,
+        excludeNotLive: kind !== "unavailable",
+      }),
+      fetchDashboardFilterOptions(filters, ["output"]),
+      kind === "occupancy" || kind === "unavailable"
+        ? fetchDashboardRawStatusOptions(filters, now, {
+            statusFilter,
+            excludeNotLive: kind === "occupancy",
+          })
+        : Promise.resolve([] as string[]),
+    ]);
+
+    return {
+      totalItems,
+      outputs: outputFilterOptions.outputs,
+      rawStatuses: rawStatusOptions,
+      hasLiveData: false,
+    };
+  }
+
+  const { data, error } = await supabase.rpc("get_public_dashboard_list_meta", {
+    target_kind: kind,
+    exclude_not_live:
+      kind === "profitability" || (kind === "occupancy" && filters.rawStatus === "all"),
+    filter_raw_status: filters.rawStatus === "all" ? null : filters.rawStatus,
+    filter_price: filters.price === "all" ? null : filters.price,
+    filter_output: filters.output === "all" ? null : filters.output,
+  });
+
+  if (error || !data) {
+    return {
+      totalItems: 0,
+      outputs: [] as string[],
+      rawStatuses: [] as string[],
+      hasLiveData: false,
+    };
+  }
+
+  const row = ((data ?? []) as SupabaseDashboardListMetaRow[])[0];
+
+  return {
+    totalItems: row?.total_count ?? 0,
+    outputs: ((row?.output_options ?? []) as string[]).filter(
+      (value): value is string => Boolean(value),
+    ),
+    rawStatuses: ((row?.raw_status_options ?? []) as string[]).filter(
+      (value): value is string => Boolean(value),
+    ),
+    hasLiveData: true,
+  };
 }
 
 async function fetchDashboardFilterOptions(
@@ -857,15 +1098,6 @@ function getSingleParam(value: SearchParamValue) {
   return Array.isArray(value) ? value[0] : value;
 }
 
-function isValidStatusFilter(value: string | undefined): value is DashboardStatusFilter {
-  return Boolean(
-    value &&
-      ["all", "available", "occupied", "unavailable", "not_live", "unknown"].includes(
-        value,
-      ),
-  );
-}
-
 function isValidPriceBucket(value: string | undefined): value is DashboardPriceBucket {
   return Boolean(
     value &&
@@ -873,25 +1105,19 @@ function isValidPriceBucket(value: string | undefined): value is DashboardPriceB
   );
 }
 
-function normalizeDashboardFilters(
+function normalizeDashboardListFilters(
   rawSearchParams: DashboardQueryParams = {},
-  options: { regions: string[]; outputs: string[] },
 ): DashboardFilters {
-  const status = getSingleParam(rawSearchParams.status);
   const rawStatus = getSingleParam(rawSearchParams.rawStatus);
   const price = getSingleParam(rawSearchParams.price);
-  const region = getSingleParam(rawSearchParams.region);
   const output = getSingleParam(rawSearchParams.output);
 
   return {
-    status: isValidStatusFilter(status) ? status : DEFAULT_FILTERS.status,
+    status: "all",
     rawStatus: rawStatus?.trim() ? rawStatus.trim() : DEFAULT_FILTERS.rawStatus,
     price: isValidPriceBucket(price) ? price : DEFAULT_FILTERS.price,
-    region: region && options.regions.includes(region) ? region : DEFAULT_FILTERS.region,
-    output:
-      output && (output === "unknown" || options.outputs.includes(output))
-        ? output
-        : DEFAULT_FILTERS.output,
+    region: DEFAULT_FILTERS.region,
+    output: output?.trim() ? output.trim() : DEFAULT_FILTERS.output,
   };
 }
 
@@ -903,6 +1129,19 @@ function normalizeDashboardPage(rawSearchParams: DashboardQueryParams = {}) {
   }
 
   return Math.floor(pageValue);
+}
+
+function normalizeDashboardQueryParamsForCache(
+  rawSearchParams: DashboardQueryParams = {},
+): DashboardQueryParams {
+  return Object.fromEntries(
+    Object.entries(rawSearchParams)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, value]) => [
+        key,
+        Array.isArray(value) ? [...value] : value,
+      ]),
+  );
 }
 
 function buildDashboardFilterOptions(
@@ -944,29 +1183,29 @@ function buildDashboardFilterOptions(
   };
 }
 
-export async function getDashboardData(now = new Date()): Promise<DashboardData> {
+async function getDashboardDataUncached(
+  now = new Date(),
+): Promise<DashboardData> {
   const filters = DEFAULT_FILTERS;
-  const [{ hasLiveData }, snapshot, topUnavailableRows, topOccupancyRows, topProfitableRows] =
-    await Promise.all([
-      fetchDashboardUniverseOptions(),
-      getDashboardSnapshot(filters, now),
-      fetchDashboardTopRows(filters, now, {
-        orderBy: "unavailable_since",
-        ascending: true,
-        limit: 10,
-        statusFilter: "unavailable",
-      }),
-      fetchDashboardTopRows(filters, now, {
-        orderBy: "observed_occupancy_rate",
-        limit: 10,
-        excludeNotLive: true,
-      }),
-      fetchDashboardTopRows(filters, now, {
-        orderBy: "estimated_all_time_revenue",
-        limit: 10,
-        excludeNotLive: true,
-      }),
-    ]);
+  const [snapshot, topUnavailableRows, topOccupancyRows, topProfitableRows] = await Promise.all([
+    getDashboardSnapshot(filters, now),
+    fetchDashboardTopRows(filters, now, {
+      orderBy: "unavailable_since",
+      ascending: true,
+      limit: 10,
+      statusFilter: "unavailable",
+    }),
+    fetchDashboardTopRows(filters, now, {
+      orderBy: "observed_occupancy_rate",
+      limit: 10,
+      excludeNotLive: true,
+    }),
+    fetchDashboardTopRows(filters, now, {
+      orderBy: "estimated_all_time_revenue",
+      limit: 10,
+      excludeNotLive: true,
+    }),
+  ]);
 
   const kpis = snapshot.kpis;
   kpis.observedOccupancyRate =
@@ -1050,8 +1289,18 @@ export async function getDashboardData(now = new Date()): Promise<DashboardData>
       observedOccupancyRate: row.observedOccupancyRate,
     })),
     generatedAt: now.toISOString(),
-    hasLiveData: hasLiveData && snapshot.hasLiveData,
+    hasLiveData: snapshot.hasLiveData,
   };
+}
+
+const getCachedDashboardData = unstable_cache(
+  async () => getDashboardDataUncached(new Date()),
+  ["dashboard-overview"],
+  { revalidate: 60 },
+);
+
+export async function getDashboardData(): Promise<DashboardData> {
+  return getCachedDashboardData();
 }
 
 async function getDashboardListData(
@@ -1059,8 +1308,7 @@ async function getDashboardListData(
   rawSearchParams: DashboardQueryParams = {},
   now = new Date(),
 ) {
-  const universeOptions = await fetchDashboardUniverseOptions();
-  const requestedFilters = normalizeDashboardFilters(rawSearchParams, universeOptions);
+  const requestedFilters = normalizeDashboardListFilters(rawSearchParams);
   const requestedPage = normalizeDashboardPage(rawSearchParams);
   const visibleFilters: DashboardVisibleFilter[] =
     kind === "occupancy"
@@ -1085,21 +1333,9 @@ async function getDashboardListData(
         : "estimated_all_time_revenue";
   const ascending = kind === "unavailable";
 
-  const [totalItems, outputFilterOptions, rawStatusOptions] = await Promise.all([
-    countDashboardRows(filters, now, {
-      statusFilter,
-      excludeNotLive: kind !== "unavailable",
-    }),
-    fetchDashboardFilterOptions(filters, ["output"]),
-    kind === "occupancy" || kind === "unavailable"
-      ? fetchDashboardRawStatusOptions(filters, now, {
-          statusFilter,
-          excludeNotLive: kind === "occupancy",
-        })
-      : Promise.resolve([] as string[]),
-  ]);
+  const meta = await fetchDashboardListMeta(kind, filters, now);
 
-  const totalPages = Math.max(1, Math.ceil(totalItems / DASHBOARD_LIST_PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(meta.totalItems / DASHBOARD_LIST_PAGE_SIZE));
   const page = Math.min(requestedPage, totalPages);
   const offset = (page - 1) * DASHBOARD_LIST_PAGE_SIZE;
   const pageRows = await fetchDashboardTopRows(filters, now, {
@@ -1114,23 +1350,23 @@ async function getDashboardListData(
   return {
     filters,
     options: buildDashboardFilterOptions(filters, {
-      ...outputFilterOptions,
-      rawStatuses: rawStatusOptions,
+      outputs: meta.outputs,
+      rawStatuses: meta.rawStatuses,
     }),
     visibleFilters,
     pagination: {
       page,
       pageSize: DASHBOARD_LIST_PAGE_SIZE,
-      totalItems,
+      totalItems: meta.totalItems,
       totalPages,
     },
     rows: pageRows,
     generatedAt: now.toISOString(),
-    hasLiveData: universeOptions.hasLiveData,
+    hasLiveData: meta.hasLiveData,
   };
 }
 
-export async function getDashboardUnavailableListData(
+async function getDashboardUnavailableListDataUncached(
   rawSearchParams: DashboardQueryParams = {},
   now = new Date(),
 ): Promise<DashboardUnavailableListData> {
@@ -1168,7 +1404,22 @@ export async function getDashboardUnavailableListData(
   };
 }
 
-export async function getDashboardOccupancyListData(
+const getCachedDashboardUnavailableListData = unstable_cache(
+  async (rawSearchParams: DashboardQueryParams) =>
+    getDashboardUnavailableListDataUncached(rawSearchParams, new Date()),
+  ["dashboard-unavailable-list"],
+  { revalidate: 60 },
+);
+
+export async function getDashboardUnavailableListData(
+  rawSearchParams: DashboardQueryParams = {},
+): Promise<DashboardUnavailableListData> {
+  return getCachedDashboardUnavailableListData(
+    normalizeDashboardQueryParamsForCache(rawSearchParams),
+  );
+}
+
+async function getDashboardOccupancyListDataUncached(
   rawSearchParams: DashboardQueryParams = {},
   now = new Date(),
 ): Promise<DashboardOccupancyListData> {
@@ -1203,7 +1454,22 @@ export async function getDashboardOccupancyListData(
   };
 }
 
-export async function getDashboardProfitabilityListData(
+const getCachedDashboardOccupancyListData = unstable_cache(
+  async (rawSearchParams: DashboardQueryParams) =>
+    getDashboardOccupancyListDataUncached(rawSearchParams, new Date()),
+  ["dashboard-occupancy-list"],
+  { revalidate: 60 },
+);
+
+export async function getDashboardOccupancyListData(
+  rawSearchParams: DashboardQueryParams = {},
+): Promise<DashboardOccupancyListData> {
+  return getCachedDashboardOccupancyListData(
+    normalizeDashboardQueryParamsForCache(rawSearchParams),
+  );
+}
+
+async function getDashboardProfitabilityListDataUncached(
   rawSearchParams: DashboardQueryParams = {},
   now = new Date(),
 ): Promise<DashboardProfitabilityListData> {
@@ -1236,7 +1502,22 @@ export async function getDashboardProfitabilityListData(
   };
 }
 
-export async function getDashboardChargerDetail(
+const getCachedDashboardProfitabilityListData = unstable_cache(
+  async (rawSearchParams: DashboardQueryParams) =>
+    getDashboardProfitabilityListDataUncached(rawSearchParams, new Date()),
+  ["dashboard-profitability-list"],
+  { revalidate: 60 },
+);
+
+export async function getDashboardProfitabilityListData(
+  rawSearchParams: DashboardQueryParams = {},
+): Promise<DashboardProfitabilityListData> {
+  return getCachedDashboardProfitabilityListData(
+    normalizeDashboardQueryParamsForCache(rawSearchParams),
+  );
+}
+
+async function getDashboardChargerDetailUncached(
   chargerId: string,
   now = new Date(),
 ): Promise<DashboardChargerDetail | null> {
@@ -1388,6 +1669,19 @@ export async function getDashboardChargerDetail(
     }),
     hasLiveData: true,
   };
+}
+
+const getCachedDashboardChargerDetail = unstable_cache(
+  async (chargerId: string) =>
+    getDashboardChargerDetailUncached(chargerId, new Date()),
+  ["dashboard-charger-detail"],
+  { revalidate: 60 },
+);
+
+export async function getDashboardChargerDetail(
+  chargerId: string,
+): Promise<DashboardChargerDetail | null> {
+  return getCachedDashboardChargerDetail(chargerId);
 }
 
 export function buildDashboardListHref(
