@@ -71,6 +71,10 @@ type SupabaseSessionRow = {
   estimated_revenue: number | null;
 };
 
+type SupabaseDashboardDetailPayloadRow = SupabaseDashboardRow & {
+  recent_sessions: SupabaseSessionRow[] | null;
+};
+
 type SupabaseDashboardSnapshotRow = {
   total_chargers: number | null;
   currently_occupied: number | null;
@@ -1302,7 +1306,7 @@ async function getDashboardDataUncached(
 const getCachedDashboardData = unstable_cache(
   async () => getDashboardDataUncached(new Date()),
   ["dashboard-overview"],
-  { revalidate: 60 },
+  { revalidate: 450 },
 );
 
 export async function getDashboardData(): Promise<DashboardData> {
@@ -1415,7 +1419,7 @@ const getCachedDashboardUnavailableListData = unstable_cache(
   async (rawSearchParams: DashboardQueryParams) =>
     getDashboardUnavailableListDataUncached(rawSearchParams, new Date()),
   ["dashboard-unavailable-list"],
-  { revalidate: 60 },
+  { revalidate: 450 },
 );
 
 export async function getDashboardUnavailableListData(
@@ -1466,7 +1470,7 @@ const getCachedDashboardOccupancyListData = unstable_cache(
   async (rawSearchParams: DashboardQueryParams) =>
     getDashboardOccupancyListDataUncached(rawSearchParams, new Date()),
   ["dashboard-occupancy-list"],
-  { revalidate: 60 },
+  { revalidate: 450 },
 );
 
 export async function getDashboardOccupancyListData(
@@ -1515,7 +1519,7 @@ const getCachedDashboardProfitabilityListData = unstable_cache(
   async (rawSearchParams: DashboardQueryParams) =>
     getDashboardProfitabilityListDataUncached(rawSearchParams, new Date()),
   ["dashboard-profitability-list"],
-  { revalidate: 60 },
+  { revalidate: 450 },
 );
 
 export async function getDashboardProfitabilityListData(
@@ -1598,36 +1602,26 @@ async function getDashboardChargerDetailUncached(
     };
   }
 
-  const { data: rows, error: rowError } = await supabase.rpc(
-    "get_public_dashboard_charger_detail",
-    {
-      target_charger_id: chargerId,
-    },
-  );
-
-  if (rowError || !rows?.length) {
-    return null;
-  }
-
-  const charger = normalizeSupabaseDashboardRow(
-    rows[0] as unknown as SupabaseDashboardRow,
-    now,
-  );
-
-  if (!charger) {
-    return null;
-  }
-
-  const { data: sessions, error: sessionError } = await supabase.rpc(
-    "get_public_dashboard_recent_sessions",
+  const { data, error } = await supabase.rpc(
+    "get_public_dashboard_charger_detail_payload",
     {
       target_charger_id: chargerId,
       target_limit: 8,
     },
   );
 
-  if (sessionError) {
-    console.error("Failed to load charger sessions", sessionError.message);
+  if (error || !data?.length) {
+    return null;
+  }
+
+  const payloadRow = (data as unknown as SupabaseDashboardDetailPayloadRow[])[0];
+  const charger = normalizeSupabaseDashboardRow(
+    payloadRow as SupabaseDashboardRow,
+    now,
+  );
+
+  if (!charger) {
+    return null;
   }
 
   return {
@@ -1660,7 +1654,7 @@ async function getDashboardChargerDetailUncached(
       unavailableSince: charger.unavailableSince,
       currentSessionStartedAt: charger.currentSessionStartedAt,
     },
-    recentSessions: (((sessions ?? []) as unknown) as SupabaseSessionRow[]).map((session) => {
+    recentSessions: ((payloadRow.recent_sessions ?? []) as SupabaseSessionRow[]).map((session) => {
       const end = session.ended_at ? new Date(session.ended_at) : new Date(charger.lastCheckedAt);
 
       return {
@@ -1684,7 +1678,7 @@ const getCachedDashboardChargerDetail = unstable_cache(
   async (chargerId: string) =>
     getDashboardChargerDetailUncached(chargerId, new Date()),
   ["dashboard-charger-detail"],
-  { revalidate: 60 },
+  { revalidate: 450 },
 );
 
 export async function getDashboardChargerDetail(

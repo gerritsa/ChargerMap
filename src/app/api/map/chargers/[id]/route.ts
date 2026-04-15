@@ -4,6 +4,9 @@ import { getMapChargerGroup } from "@/lib/chargers";
 
 export const dynamic = "force-dynamic";
 
+const MAP_SELECTION_CACHE_CONTROL =
+  "public, s-maxage=120, stale-while-revalidate=300";
+
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
@@ -22,5 +25,9 @@ export async function GET(_request: Request, context: RouteContext) {
   return NextResponse.json({
     chargers,
     selectedId: chargers.some((charger) => charger.id === id) ? id : chargers[0]?.id ?? null,
+  }, {
+    headers: {
+      "Cache-Control": MAP_SELECTION_CACHE_CONTROL,
+    },
   });
 }

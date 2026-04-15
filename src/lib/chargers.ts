@@ -85,6 +85,8 @@ type SupabaseMapViewportPayloadRow = {
     | null;
 };
 
+const MAP_SHARED_CACHE_REVALIDATE_SECONDS = 120;
+
 function isWithinBounds(bounds: MapBounds, lat: number, lng: number) {
   return (
     lat >= bounds.south &&
@@ -109,6 +111,23 @@ function normalizeSummaryRow(row: SupabaseMapSummaryRow): MapChargerSummary | nu
     lng: row.lng,
     statusText: row.status_text ?? "UNKNOWN",
     statusNormalized: row.status_normalized ?? "unknown",
+  };
+}
+
+function buildMapBoundsCacheKey(bounds: MapBounds) {
+  return [bounds.west, bounds.south, bounds.east, bounds.north]
+    .map((value) => value.toFixed(4))
+    .join(":");
+}
+
+function parseMapBoundsCacheKey(cacheKey: string): MapBounds {
+  const [west, south, east, north] = cacheKey.split(":").map(Number);
+
+  return {
+    west,
+    south,
+    east,
+    north,
   };
 }
 
@@ -203,7 +222,7 @@ function buildMockChargerGroup(chargerId: string) {
     );
 }
 
-export async function getMapDataForBounds(
+async function getMapDataForBoundsUncached(
   bounds: MapBounds = DEFAULT_MAP_BOUNDS,
 ): Promise<MapDataResponse> {
   const supabase = createServerSupabaseClient();
@@ -250,6 +269,18 @@ export async function getMapDataForBounds(
       })),
     },
   };
+}
+
+const getCachedMapDataForBounds = unstable_cache(
+  async (cacheKey: string) => getMapDataForBoundsUncached(parseMapBoundsCacheKey(cacheKey)),
+  ["map-data-for-bounds"],
+  { revalidate: MAP_SHARED_CACHE_REVALIDATE_SECONDS },
+);
+
+export async function getMapDataForBounds(
+  bounds: MapBounds = DEFAULT_MAP_BOUNDS,
+): Promise<MapDataResponse> {
+  return getCachedMapDataForBounds(buildMapBoundsCacheKey(bounds));
 }
 
 export async function getMapNetworkMetrics(): Promise<ChargerMapMetrics> {
