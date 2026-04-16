@@ -8,6 +8,7 @@
     "@/lib/swtch/normalize-status": "../../../src/lib/swtch/normalize-status.ts",
     "@/lib/swtch/parser": "../../../src/lib/swtch/parser.ts",
     "@/lib/swtch/pricing": "../../../src/lib/swtch/pricing.ts",
+    "@/lib/swtch/session-estimation": "../../../src/lib/swtch/session-estimation.ts",
     "@/lib/swtch/status-store": "../../../src/lib/swtch/status-store.ts",
     "@/types/charger": "../../../src/types/charger.ts",
     "@supabase/supabase-js": "npm:@supabase/supabase-js@2.102.1",
