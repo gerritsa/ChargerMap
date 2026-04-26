@@ -4,7 +4,7 @@ import {
   buildChargerStatsBuckets,
   computeObservedOccupancyRate,
   computeTrackedSeconds,
-} from "../polling-stats.ts";
+} from "@/lib/polling_stats";
 import {
   DEFAULT_ASSUMED_BATTERY_KWH,
   DEFAULT_ASSUMED_END_SOC,

@@ -2,6 +2,7 @@
   "imports": {
     "@/data/toronto-region.json": "../../../src/data/toronto-region.json",
     "@/lib/polling-stats": "../../../src/lib/polling-stats.ts",
+    "@/lib/polling_stats": "../../../src/lib/polling-stats.ts",
     "@/lib/polling": "../../../src/lib/polling.ts",
     "@/lib/status-tracking": "../../../src/lib/status-tracking.ts",
     "@/lib/swtch/fetch": "../../../src/lib/swtch/fetch.ts",
