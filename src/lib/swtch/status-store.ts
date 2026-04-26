@@ -4,7 +4,7 @@ import {
   buildChargerStatsBuckets,
   computeObservedOccupancyRate,
   computeTrackedSeconds,
-} from "@/lib/polling-stats";
+} from "../polling-stats.ts";
 import {
   DEFAULT_ASSUMED_BATTERY_KWH,
   DEFAULT_ASSUMED_END_SOC,
@@ -246,10 +246,12 @@ async function refreshChargerPollRuntime(
   supabase: SupabaseClient,
   chargerId: string,
   checkedAt: string,
+  statusNormalized: ChargerStatusNormalized,
 ) {
   const { error } = await supabase.rpc("refresh_charger_poll_runtime", {
     target_charger_id: chargerId,
     checked_at: checkedAt,
+    target_status_normalized: statusNormalized,
   });
 
   if (error) {
@@ -529,7 +531,12 @@ export async function recordCheckError({
     estimatedAllTimeRevenue: existingStats?.estimated_all_time_revenue ?? 0,
   });
 
-  await refreshChargerPollRuntime(supabase, charger.chargerId, checkedAt);
+  await refreshChargerPollRuntime(
+    supabase,
+    charger.chargerId,
+    checkedAt,
+    existingStatus?.status_normalized ?? "unknown",
+  );
 }
 
 export async function recordStatusCheck({
@@ -547,7 +554,12 @@ export async function recordStatusCheck({
 
   if (!rawStatusChanged && !normalizedStatusChanged) {
     const maintenanceTasks: Promise<unknown>[] = [
-      refreshChargerPollRuntime(supabase, charger.chargerId, checkedAt),
+      refreshChargerPollRuntime(
+        supabase,
+        charger.chargerId,
+        checkedAt,
+        statusNormalized,
+      ),
     ];
 
     if (existingStatus.check_error) {
@@ -646,7 +658,12 @@ export async function recordStatusCheck({
       estimatedAllTimeRevenue: aggregateUpdate.estimatedAllTimeRevenue,
     });
 
-    await refreshChargerPollRuntime(supabase, charger.chargerId, checkedAt);
+    await refreshChargerPollRuntime(
+      supabase,
+      charger.chargerId,
+      checkedAt,
+      statusNormalized,
+    );
     return;
   }
 
@@ -677,5 +694,10 @@ export async function recordStatusCheck({
     estimatedAllTimeRevenue: existingStats?.estimated_all_time_revenue ?? 0,
   });
 
-  await refreshChargerPollRuntime(supabase, charger.chargerId, checkedAt);
+  await refreshChargerPollRuntime(
+    supabase,
+    charger.chargerId,
+    checkedAt,
+    statusNormalized,
+  );
 }
